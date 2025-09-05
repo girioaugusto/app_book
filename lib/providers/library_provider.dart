@@ -51,7 +51,6 @@ class LibraryProvider extends ChangeNotifier {
     }
   }
 
-  // >>> Faltava este método
   bool isFavorite(String id) => _favorites.any((b) => b.id == id);
 
   // Helpers de favorito
