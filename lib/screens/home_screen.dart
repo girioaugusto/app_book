@@ -17,7 +17,6 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    // Busca inicial após o 1º frame (evita problemas de contexto)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final q = _controller.text.trim();
       if (q.isNotEmpty) {
@@ -59,7 +58,6 @@ class _HomeScreenState extends State<HomeScreen> {
               padding: const EdgeInsets.all(12),
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: cols,
-                // ↓↓↓ MAIS ALTO para caber capa + textos (evita overflow)
                 childAspectRatio: _tileAspectRatio(
                   cols: cols,
                   textScale: MediaQuery.of(context).textScaleFactor,
@@ -70,13 +68,7 @@ class _HomeScreenState extends State<HomeScreen> {
               itemCount: lib.results.length,
               itemBuilder: (context, index) {
                 final book = lib.results[index];
-                return BookCard(
-                  book: book,
-                  // se quiser ligar favoritos agora, descomente:
-                  // isFavorite: lib.isFavorite(book.id),
-                  // onFavorite: () => lib.toggleFavorite(book),
-                  // onTap: () => Navigator.pushNamed(context, '/details', arguments: book),
-                );
+                return BookCard(book: book);
               },
             ),
           );
@@ -85,7 +77,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     return GestureDetector(
-      onTap: () => FocusScope.of(context).unfocus(), // fecha teclado ao tocar fora
+      onTap: () => FocusScope.of(context).unfocus(),
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Buscar livros'),
@@ -119,13 +111,11 @@ class _HomeScreenState extends State<HomeScreen> {
                                 icon: const Icon(Icons.clear),
                                 onPressed: () {
                                   _controller.clear();
-                                  setState(() {}); // atualiza suffixIcon
-                                  // opcional: limpar resultados no provider ao limpar a busca
-                                  // context.read<LibraryProvider>().searchBooks('');
+                                  setState(() {});
                                 },
                               ),
                       ),
-                      onChanged: (_) => setState(() {}), // atualiza suffix
+                      onChanged: (_) => setState(() {}),
                       onSubmitted: (q) => lib.searchBooks(q.trim()),
                     ),
                   ),
@@ -149,31 +139,29 @@ class _HomeScreenState extends State<HomeScreen> {
 
 /// Nº de colunas por largura (responsivo)
 int _columnsForWidth(double w) {
-  if (w >= 1000) return 4; // desktop/tablet grande
-  if (w >= 720) return 3;  // tablet/landscape
-  return 2;                // celular
+  if (w >= 1000) return 4;
+  if (w >= 720) return 3;
+  return 2;
 }
 
-/// Aspect ratio mais ALTO para caber capa (3:4) + textos
+/// Aspect ratio para caber capa + textos
 double _tileAspectRatio({required int cols, required double textScale}) {
-  // Quanto MENOR o número → MAIS ALTO o card.
   double base;
   switch (cols) {
     case 2:
-      base = 0.54; // celular (2 colunas) — alto o suficiente
+      base = 0.54;
       break;
     case 3:
-      base = 0.60; // tablet médio
+      base = 0.60;
       break;
     default:
-      base = 0.70; // 4 colunas ou mais
+      base = 0.70;
   }
-  // Se o usuário aumentou o tamanho do texto no sistema, aumente a altura
   final scale = textScale.clamp(1.0, 1.3);
   return base / scale;
 }
 
-// ----------------- Widgets auxiliares: skeleton/erro/vazio -----------------
+// ----------------- Widgets auxiliares -----------------
 
 class _BooksGridSkeleton extends StatelessWidget {
   const _BooksGridSkeleton();
