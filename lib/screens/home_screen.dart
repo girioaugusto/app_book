@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:livros_app/screens/book_datails_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:livros_app/providers/library_provider.dart';
 import 'package:livros_app/widgets/book_card.dart';
@@ -68,7 +69,16 @@ class _HomeScreenState extends State<HomeScreen> {
               itemCount: lib.results.length,
               itemBuilder: (context, index) {
                 final book = lib.results[index];
-                return BookCard(book: book);
+                return BookCard(
+                  book: book,
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => BookDetailsScreen(book: book),
+                      ),
+                    );
+                  },
+                );
               },
             ),
           );

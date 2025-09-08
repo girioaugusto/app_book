@@ -6,6 +6,10 @@ class Book {
   final double? price;           // preço (pode não existir)
   final String? currency;        // moeda (ex.: USD, BRL)
 
+  // Usados na tela de detalhes
+  final String? description;     // resumo/descrição
+  final List<String> categories; // categorias/gêneros
+
   Book({
     required this.id,
     required this.title,
@@ -13,9 +17,10 @@ class Book {
     this.thumbnail,
     this.price,
     this.currency,
+    this.description,
+    this.categories = const <String>[],
   });
 
-  // Constrói a partir do item retornado pela Google Books API
   factory Book.fromGoogleItem(Map<String, dynamic> json) {
     final volumeInfo = json['volumeInfo'] ?? {};
     final saleInfo = json['saleInfo'] ?? {};
@@ -24,7 +29,6 @@ class Book {
     double? parsedPrice;
     String? currency;
 
-    // Às vezes vem como listPrice, outras como retailPrice:
     if (saleInfo['listPrice'] != null) {
       parsedPrice = (saleInfo['listPrice']['amount'] as num?)?.toDouble();
       currency = saleInfo['listPrice']['currencyCode'];
@@ -42,10 +46,13 @@ class Book {
       thumbnail: (imageLinks['thumbnail'] ?? imageLinks['smallThumbnail'])?.toString(),
       price: parsedPrice,
       currency: currency,
+      description: volumeInfo['description'] as String?,
+      categories: (volumeInfo['categories'] as List?)
+              ?.map((e) => e.toString())
+              .toList() ?? <String>[],
     );
   }
 
-  // Para persistir favorito localmente
   Map<String, dynamic> toJson() => {
     'id': id,
     'title': title,
@@ -53,6 +60,8 @@ class Book {
     'thumbnail': thumbnail,
     'price': price,
     'currency': currency,
+    'description': description,
+    'categories': categories,
   };
 
   factory Book.fromJson(Map<String, dynamic> json) => Book(
@@ -62,5 +71,9 @@ class Book {
     thumbnail: json['thumbnail'] as String?,
     price: (json['price'] as num?)?.toDouble(),
     currency: json['currency'] as String?,
+    description: json['description'] as String?,
+    categories: (json['categories'] as List?)
+            ?.map((e) => e.toString())
+            .toList() ?? <String>[],
   );
 }
