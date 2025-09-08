@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:livros_app/screens/book_datails_screen.dart';
+import 'package:livros_app/screens/book_details_screen.dart';
 import 'package:provider/provider.dart';
-import 'package:livros_app/providers/library_provider.dart';
+import 'package:livros_app/providers/library_provider.dart' hide BookDetailsScreen;
 import 'package:livros_app/widgets/book_card.dart';
 
 class HomeScreen extends StatefulWidget {
