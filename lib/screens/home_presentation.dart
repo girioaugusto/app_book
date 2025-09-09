@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:livros_app/widgets/rotating_quotes_card.dart';
 import 'package:provider/provider.dart';
 import 'package:livros_app/providers/tabs_controller.dart';
 
@@ -14,12 +15,21 @@ class HomePresentation extends StatelessWidget {
         child: Column(
           children: [
             const SizedBox(height: 12),
+
+            // LOGO
             Image.asset('lib/assets/logo.png', width: 160),
+
             const SizedBox(height: 20),
+
+            // TÍTULO + DESCRIÇÃO
             const Text(
               "Bem-vindo ao Entre Páginas",
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: appGreen),
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w800,
+                color: appGreen,
+              ),
             ),
             const SizedBox(height: 10),
             const Text(
@@ -27,16 +37,31 @@ class HomePresentation extends StatelessWidget {
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 16, color: Colors.black87),
             ),
-            const SizedBox(height: 28),
+
+            const SizedBox(height: 60),
+
+
+            // ÍCONES (destaques)
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: const [
                 _Feature(icon: Icons.library_books, label: "Biblioteca"),
-                _Feature(icon: Icons.star, label: "Favoritos"),
+                _Feature(icon: Icons.favorite, label: "Favoritos"),
                 _Feature(icon: Icons.bar_chart, label: "Progresso"),
               ],
             ),
+
+            const SizedBox(height: 60),
+
+            const RotatingQuoteCard(
+              dailyOnly: true, // 1 frase por dia (sem troca automática)
+              // Para trocar automaticamente:
+              // dailyOnly: false, autoRotate: true, interval: Duration(seconds: 6),
+            ),
+
             const Spacer(),
+
+            // CTA
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
@@ -50,7 +75,9 @@ class HomePresentation extends StatelessWidget {
                   backgroundColor: appGreen,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
               ),
             ),
