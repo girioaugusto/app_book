@@ -81,6 +81,7 @@ class BookDetailsScreen extends StatelessWidget {
                 // Para compartilhar de verdade: use o pacote share_plus aqui.
               },
             ),
+            
           ],
         ),
       ),
@@ -94,6 +95,17 @@ class BookDetailsScreen extends StatelessWidget {
             foregroundColor: cs.onSurface,
             title: const Text('Detalhes'),
             stretch: true,
+
+            // --- Botão "Voltar" sempre visível ---
+            automaticallyImplyLeading: false,
+            leadingWidth: 56,
+            leading: Padding(
+              padding: const EdgeInsets.only(left: 8, top: 6, bottom: 6),
+              child: _FrostedBackButton(
+                onPressed: () => Navigator.of(context).maybePop(),
+              ),
+            ),
+
             flexibleSpace: FlexibleSpaceBar(
               collapseMode: CollapseMode.parallax,
               background: Stack(
@@ -244,6 +256,45 @@ class BookDetailsScreen extends StatelessWidget {
     final s = html?.trim();
     if (s == null || s.isEmpty) return null;
     return s.replaceAll(RegExp(r'<[^>]*>'), '').replaceAll(RegExp(r'\s+'), ' ').trim();
+  }
+}
+
+// ---------- Botão de voltar com blur e fundo escuro ----------
+class _FrostedBackButton extends StatelessWidget {
+  final VoidCallback onPressed;
+  const _FrostedBackButton({required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: 'Voltar',
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+          child: Material(
+            color: Colors.black.withOpacity(0.35), // sempre visível
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(color: Colors.white.withOpacity(0.10)),
+            ),
+            child: InkWell(
+              onTap: onPressed,
+              child: const SizedBox(
+                width: 44,
+                height: 44,
+                child: Icon(
+                  Icons.arrow_back_rounded,
+                  color: Colors.white,
+                  shadows: [Shadow(blurRadius: 6, color: Colors.black54, offset: Offset(0, 2))],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 

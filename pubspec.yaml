@@ -1,5 +1,5 @@
 name: livros_app
-description: App  de livros
+description: App de livros
 publish_to: "none"
 
 environment:
@@ -9,11 +9,9 @@ dependencies:
   flutter:
     sdk: flutter
   http: ^1.2.2
-  provider: ^6.1.2        # gerenciar estado de forma simples
-  shared_preferences: ^2.3.2  # persistir favoritos no dispositivo
+  provider: ^6.1.2          # gerenciar estado de forma simples
+  shared_preferences: ^2.3.2 # persistir favoritos no dispositivo
   google_fonts: ^6.2.1
-
-
   url_launcher: ^6.3.0
 
 dev_dependencies:
@@ -23,3 +21,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - lib/assets/logo.png
