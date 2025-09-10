@@ -6,6 +6,9 @@ class Book {
   final double? price;           // preço (pode não existir)
   final String? currency;        // moeda (ex.: USD, BRL)
 
+
+  final double progress; // 0.0 = não iniciado, 1.0 = lido
+
   // Usados na tela de detalhes
   final String? description;     // resumo/descrição
   final List<String> categories; // categorias/gêneros
@@ -19,6 +22,7 @@ class Book {
     this.currency,
     this.description,
     this.categories = const <String>[],
+    this.progress = 0.0
   });
 
   factory Book.fromGoogleItem(Map<String, dynamic> json) {

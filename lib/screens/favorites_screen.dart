@@ -5,7 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:livros_app/models/book.dart';
 import 'package:livros_app/providers/library_provider.dart';
 import 'package:livros_app/screens/book_details_screen.dart';
-import 'package:livros_app/screens/home_screen.dart'; // <-- importar HomeScreen
+import 'package:livros_app/screens/home_screen.dart';
 
 enum _SortMode { recent, title, author }
 
@@ -42,7 +42,6 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
         break;
     }
 
-    // label com espaço não-quebrável entre número e palavra
     final favCountLabel =
         '${favorites.length}\u00A0${favorites.length == 1 ? 'favorito' : 'favoritos'}';
 
@@ -74,7 +73,6 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                     ),
                   );
                   if (confirm == true) {
-                    // Remove um a um para respeitar a persistência do provider
                     for (final b in List<Book>.from(favorites)) {
                       await context.read<LibraryProvider>().toggleFavorite(b);
                     }
@@ -106,7 +104,6 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
         child: favorites.isEmpty
             ? _EmptyState(onExplore: () {
-                // Vai para a HomeScreen e limpa a pilha atual
                 Navigator.of(context).pushAndRemoveUntil(
                   MaterialPageRoute(builder: (_) => const HomeScreen()),
                   (route) => false,
@@ -115,13 +112,13 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
             : Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Cabeçalho com contagem + chips de ordenação
+                  // Cabeçalho com contagem + chips
                   Row(
                     children: [
                       Expanded(
                         child: Text(
                           favCountLabel,
-                          maxLines: 1,                 // <- evita quebrar
+                          maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: Theme.of(context)
                               .textTheme
@@ -137,7 +134,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                   ),
                   const SizedBox(height: 12),
 
-                  // Grid de cards
+                  // Grid (sem botões; abre detalhes no tap, remove no long-press)
                   Expanded(
                     child: GridView.builder(
                       physics: const BouncingScrollPhysics(),
@@ -279,11 +276,11 @@ class _SortChips extends StatelessWidget {
   }
 }
 
-/// Card de favorito com interação divertida
+/// Card de favorito (SEM botões; ações foram movidas para os detalhes)
 class _FavCard extends StatelessWidget {
   final Book book;
   final VoidCallback onOpen;
-  final VoidCallback onRemove;
+  final VoidCallback onRemove; // remove dos favoritos com Undo
 
   const _FavCard({
     required this.book,
@@ -294,18 +291,22 @@ class _FavCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final title = (book.title ?? '').trim().isEmpty
-        ? 'Sem título'
-        : book.title!.trim();
+    final lib = context.watch<LibraryProvider>();
+
+    final title = (book.title ?? '').trim().isEmpty ? 'Sem título' : book.title!.trim();
     final authors = (book.authors?.isNotEmpty ?? false)
         ? book.authors!.join(', ')
         : 'Autor desconhecido';
     final coverUrl = _tunedCoverUrl(book.thumbnail);
 
+    // estado de leitura (só indicador visual)
+    final inToRead = lib.isInToRead(book.id);
+    final inRead   = lib.isInRead(book.id);
+
     return InkWell(
       borderRadius: BorderRadius.circular(16),
       onTap: onOpen,
-      onLongPress: onRemove, // long press remove com Undo
+      onLongPress: onRemove, // long press remove favorito com Undo
       child: Ink(
         decoration: BoxDecoration(
           color: cs.surface,
@@ -322,7 +323,7 @@ class _FavCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Capa + cantinho “favorito”
+            // Capa + selo de favorito
             Stack(
               children: [
                 ClipRRect(
@@ -330,7 +331,7 @@ class _FavCard extends StatelessWidget {
                       const BorderRadius.vertical(top: Radius.circular(16)),
                   child: coverUrl != null
                       ? Hero(
-                          tag: 'cover_${book.id}', // anima com a tela de detalhes
+                          tag: 'cover_${book.id}',
                           child: Image.network(
                             coverUrl,
                             height: 160,
@@ -373,7 +374,8 @@ class _FavCard extends StatelessWidget {
                 ),
               ],
             ),
-            // Texto
+
+            // Texto (sem botões aqui)
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
@@ -414,9 +416,10 @@ class _FavCard extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 6),
-                        Icon(Icons.touch_app_rounded,
-                            size: 16,
-                            color: cs.onSurfaceVariant.withOpacity(0.7)),
+                        if (inRead)
+                          Icon(Icons.check_circle, size: 16, color: cs.primary)
+                        else if (inToRead)
+                          Icon(Icons.bookmark_added, size: 16, color: cs.onSurfaceVariant),
                       ],
                     ),
                   ],
@@ -438,8 +441,8 @@ class _FavCard extends StatelessWidget {
   String? _tunedCoverUrl(String? url) {
     if (url == null || url.isEmpty) return null;
     var u = url.replaceFirst('http://', 'https://');
-    if (u.contains(RegExp(r'zoom=\\d'))) {
-      u = u.replaceAll(RegExp(r'zoom=\\d'), 'zoom=1'); // pede maior quando possível
+    if (RegExp(r'zoom=\d').hasMatch(u)) {
+      u = u.replaceAll(RegExp(r'zoom=\d'), 'zoom=1');
     } else {
       final sep = u.contains('?') ? '&' : '?';
       u = '$u${sep}zoom=1';

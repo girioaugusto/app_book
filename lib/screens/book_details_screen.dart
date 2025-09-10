@@ -28,14 +28,73 @@ class BookDetailsScreen extends StatelessWidget {
     final targetH = (logicalH * mq.devicePixelRatio).round();
 
     // provider: checa por id (String)
-    final isFav = context.watch<LibraryProvider>().isFavorite(book.id);
+    final lib      = context.watch<LibraryProvider>();
+    final isFav    = lib.isFavorite(book.id);
+    final inToRead = lib.isInToRead(book.id);
+    final inRead   = lib.isInRead(book.id);
+
+    // Configuração do botão dinâmico Ler/Lido (mesma lógica do seu card)
+    late final IconData primaryIcon;
+    late final String primaryTooltip;
+    Future<void> Function() primaryOnPressed;
+
+    if (!inToRead && !inRead) {
+      primaryIcon = Icons.playlist_add;
+      primaryTooltip = 'Adicionar a Ler';
+      primaryOnPressed = () async {
+        await context.read<LibraryProvider>().addToRead(book);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            behavior: SnackBarBehavior.floating,
+            content: Text('“${book.title ?? 'Livro'}” adicionado em Ler'),
+            action: SnackBarAction(
+              label: 'Desfazer',
+              onPressed: () => context.read<LibraryProvider>().removeFromAll(book.id),
+            ),
+          ),
+        );
+      };
+    } else if (inToRead) {
+      primaryIcon = Icons.check_circle;
+      primaryTooltip = 'Marcar como Lido';
+      primaryOnPressed = () async {
+        await context.read<LibraryProvider>().markAsRead(book);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            behavior: SnackBarBehavior.floating,
+            content: Text('“${book.title ?? 'Livro'}” marcado como Lido'),
+            action: SnackBarAction(
+              label: 'Desfazer',
+              onPressed: () => context.read<LibraryProvider>().moveBackToRead(book),
+            ),
+          ),
+        );
+      };
+    } else {
+      primaryIcon = Icons.undo;
+      primaryTooltip = 'Mover para Ler';
+      primaryOnPressed = () async {
+        await context.read<LibraryProvider>().moveBackToRead(book);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            behavior: SnackBarBehavior.floating,
+            content: Text('“${book.title ?? 'Livro'}” movido para Ler'),
+            action: SnackBarAction(
+              label: 'Desfazer',
+              onPressed: () => context.read<LibraryProvider>().markAsRead(book),
+            ),
+          ),
+        );
+      };
+    }
 
     return Scaffold(
-      // Barra de ação fixa no rodapé (favoritar + compartilhar)
+      // Barra de ação fixa no rodapé (Favorito + Ler/Lido + Compartilhar)
       bottomNavigationBar: SafeArea(
         minimum: const EdgeInsets.fromLTRB(16, 8, 16, 12),
         child: Row(
           children: [
+            // ❤️ Favorito
             Expanded(
               child: ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
@@ -52,15 +111,33 @@ class BookDetailsScreen extends StatelessWidget {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       behavior: SnackBarBehavior.floating,
-                      content: Text(nowFav
-                          ? 'Adicionado aos favoritos'
-                          : 'Removido dos favoritos'),
+                      content: Text(
+                        nowFav ? 'Adicionado aos favoritos' : 'Removido dos favoritos',
+                      ),
                     ),
                   );
                 },
               ),
             ),
             const SizedBox(width: 12),
+
+            // 📖 Ler / ✅ Lido (dinâmico)
+            Expanded(
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                icon: Icon(primaryIcon),
+                label: Text(primaryTooltip),
+                onPressed: primaryOnPressed,
+              ),
+            ),
+            const SizedBox(width: 12),
+
+            // 🔗 Compartilhar (mantido)
             IconButton.filledTonal(
               style: ButtonStyle(
                 shape: WidgetStateProperty.all(
@@ -81,7 +158,6 @@ class BookDetailsScreen extends StatelessWidget {
                 // Para compartilhar de verdade: use o pacote share_plus aqui.
               },
             ),
-            
           ],
         ),
       ),
