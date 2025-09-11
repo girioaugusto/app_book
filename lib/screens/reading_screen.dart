@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import 'package:livros_app/models/book.dart';
@@ -23,9 +24,23 @@ class ReadingScreen extends StatelessWidget {
       length: 2,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Sua Leitura'),
+          title: Text(
+            '📖 Sua Leitura',
+            style: GoogleFonts.lobster(
+              fontSize: 30,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           bottom: const TabBar(
-            tabs: [Tab(text: 'Ler'), Tab(text: 'Lido')],
+            labelColor: Colors.white,
+            unselectedLabelColor: Colors.grey,
+            labelStyle: TextStyle(
+              fontSize: 18,
+            ),
+            tabs: [
+              Tab(text: 'Ler'),
+              Tab(text: 'Lido'),
+            ],
           ),
         ),
         body: TabBarView(
@@ -122,14 +137,21 @@ class _BooksGrid extends StatelessWidget {
     return GridView.builder(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2, childAspectRatio: 0.64, crossAxisSpacing: 12, mainAxisSpacing: 12,
+        crossAxisCount: 2,
+        childAspectRatio: 0.64,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
       ),
       itemCount: books.length,
       itemBuilder: (context, i) {
         final book = books[i];
         final card = Stack(
           children: [
-            BookCard(book: book, onTap: () => onTap(book)),
+            BookCard(
+              book: book,
+              onTap: () => onTap(book),
+              showPrice: false, // NÃO mostrar preço nas abas Ler/Lido
+            ),
             Positioned.fill(child: overlayBuilder(book)),
           ],
         );
@@ -151,7 +173,7 @@ class _ReadBadge extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(
-            color: Colors.green.withOpacity(.12),
+            color: Colors.green.shade100,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(color: Colors.green.withOpacity(.45)),
           ),

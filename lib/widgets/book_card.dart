@@ -8,12 +8,16 @@ class BookCard extends StatelessWidget {
   final bool isFavorite;
   final VoidCallback? onFavorite;
 
+  // 👇 NOVO: controla se mostra o preço
+  final bool showPrice;
+
   const BookCard({
     super.key,
     required this.book,
     this.onTap,
     this.isFavorite = false,
     this.onFavorite,
+    this.showPrice = true, // padrão: mostra preço (outras telas)
   });
 
   @override
@@ -84,7 +88,9 @@ class BookCard extends StatelessWidget {
                                     child: const Icon(Icons.menu_book, color: Colors.black38),
                                   ),
                           ),
-                          if (priceText != '—')
+
+                          // 👇 Só mostra o badge se showPrice for true e existir preço
+                          if (showPrice && priceText != '—')
                             Positioned(
                               right: 8,
                               top: 8,
@@ -166,7 +172,7 @@ class BookCard extends StatelessWidget {
                     ),
                   ),
 
-                  // favorito opcional (deixei, mas pode remover)
+                  // favorito opcional
                   if (onFavorite != null) ...[
                     const SizedBox(height: 8),
                     Align(

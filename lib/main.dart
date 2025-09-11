@@ -3,7 +3,8 @@ import 'package:provider/provider.dart';
 
 import 'providers/tabs_controller.dart';
 import 'providers/library_provider.dart';
-import 'root_shell.dart';
+
+import 'splash_screen.dart'; //
 
 void main() {
   runApp(
@@ -28,6 +29,7 @@ class MyApp extends StatelessWidget {
     );
 
     return MaterialApp(
+      debugShowCheckedModeBanner: false,
       title: 'Livros App',
       theme: base.copyWith(
         appBarTheme: AppBarTheme(
@@ -51,7 +53,8 @@ class MyApp extends StatelessWidget {
           ),
         ),
       ),
-      home: const RootShell(),
+      home: const SplashScreen(), // 👈 agora inicia pelo Splash
+
     );
   }
 }
