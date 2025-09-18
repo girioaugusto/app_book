@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:livros_app/screens/book_details_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:livros_app/providers/library_provider.dart' hide BookDetailsScreen;
@@ -90,7 +91,13 @@ class _HomeScreenState extends State<HomeScreen> {
       onTap: () => FocusScope.of(context).unfocus(),
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Buscar livros'),
+          title: Text(
+            '🔎 Buscar livros',
+            style: GoogleFonts.lobster(
+              fontSize: 30,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           actions: [
             IconButton(
               icon: const Icon(Icons.refresh),
@@ -132,7 +139,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(width: 8),
                   FilledButton(
                     onPressed: () => lib.searchBooks(_controller.text.trim()),
-                    child: const Text('Buscar'),
+                    child: const Text(
+                      'Buscar'
+                    ),
                   ),
                 ],
               ),

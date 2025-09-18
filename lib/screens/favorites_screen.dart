@@ -1,5 +1,6 @@
 // lib/screens/favorites_screen.dart
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import 'package:livros_app/models/book.dart';
@@ -47,7 +48,13 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Favoritos'),
+        title: Text(
+          '❤️ Favoritos',
+          style: GoogleFonts.lobster(
+              fontSize: 30,
+              fontWeight: FontWeight.bold,
+            ),
+        ),
         actions: [
           if (favorites.isNotEmpty)
             PopupMenuButton<String>(

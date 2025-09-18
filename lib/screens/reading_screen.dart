@@ -1,14 +1,12 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:provider/provider.dart';
-
 import 'package:livros_app/models/book.dart';
-import 'package:livros_app/providers/library_provider.dart';
-import 'package:livros_app/widgets/book_card.dart'; // ajuste o path se necessário
+import 'package:livros_app/widgets/book_card.dart';
 
 class ReadingScreen extends StatelessWidget {
-  final List<Book> toRead; // “Ler”
-  final List<Book> read;   // “Lido”
+  final List<Book> toRead; // livros "Ler"
+  final List<Book> read;   // livros "Lido"
   final void Function(Book) onOpenDetails;
 
   const ReadingScreen({
@@ -20,95 +18,120 @@ class ReadingScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return DefaultTabController(
       length: 2,
       child: Scaffold(
         appBar: AppBar(
           title: Text(
-            '📖 Sua Leitura',
-            style: GoogleFonts.lobster(
-              fontSize: 30,
-              fontWeight: FontWeight.bold,
+            'Sua leitura 📖',
+            style: GoogleFonts.lobster(fontSize: 26, fontWeight: FontWeight.bold),
+          ),
+          // ---- TabBar somente com troca de cor da fonte/ícone ----
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(46),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
+              child: TabBar(
+                isScrollable: false,
+                dividerColor: Colors.transparent,
+                indicatorColor: Colors.transparent, // sem underline/shape
+                labelPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+
+                // Ativa = branco forte; Inativa = branco mais fraco
+                labelColor: Colors.white,
+                unselectedLabelColor: Colors.white.withOpacity(0.55),
+
+                // Só peso da fonte muda pra dar destaque
+                labelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
+                unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+
+                tabs: const [
+                  Tab(child: _TabLabel(icon: Icons.menu_book_rounded, text: 'Ler')),
+                  Tab(child: _TabLabel(icon: Icons.check_circle_rounded, text: 'Lido')),
+                ],
+              ),
             ),
           ),
-          bottom: const TabBar(
-            labelColor: Colors.white,
-            unselectedLabelColor: Colors.grey,
-            labelStyle: TextStyle(
-              fontSize: 18,
+          actions: [
+            IconButton(
+              tooltip: 'Sortear rápido (LER)',
+              onPressed: toRead.isEmpty
+                  ? null
+                  : () {
+                      final picked = (toRead.toList()..shuffle()).first;
+                      onOpenDetails(picked);
+                    },
+              icon: const Icon(Icons.shuffle, color: Colors.white),
             ),
-            tabs: [
-              Tab(text: 'Ler'),
-              Tab(text: 'Lido'),
-            ],
-          ),
+          ],
         ),
         body: TabBarView(
+          physics: const NeverScrollableScrollPhysics(),
           children: [
-            // Ler: swipe → Lido
             _BooksGrid(
               books: toRead,
               onTap: onOpenDetails,
-              overlayBuilder: (book) => const SizedBox.shrink(),
-              buildDismissible: (book, child) => Dismissible(
-                key: ValueKey('toRead-${book.id}'),
-                direction: DismissDirection.endToStart,
-                background: _swipeBg(
-                  alignment: Alignment.centerRight,
-                  icon: Icons.check_circle,
-                  label: 'Marcar como Lido',
-                  color: Colors.green,
-                ),
-                onDismissed: (_) async {
-                  await context.read<LibraryProvider>().markAsRead(book);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('“${book.title}” marcado como Lido'),
-                      action: SnackBarAction(
-                        label: 'Desfazer',
-                        onPressed: () =>
-                            context.read<LibraryProvider>().moveBackToRead(book),
-                      ),
-                    ),
-                  );
-                },
-                child: child,
-              ),
+              overlayBuilder: (_) => const SizedBox.shrink(),
             ),
-
-            // Lido: swipe → Ler
             _BooksGrid(
               books: read,
               onTap: onOpenDetails,
-              overlayBuilder: (book) => const _ReadBadge(),
-              buildDismissible: (book, child) => Dismissible(
-                key: ValueKey('read-${book.id}'),
-                direction: DismissDirection.startToEnd,
-                background: _swipeBg(
-                  alignment: Alignment.centerLeft,
-                  icon: Icons.undo,
-                  label: 'Mover para Ler',
-                  color: Theme.of(context).colorScheme.primary,
+              overlayBuilder: (b) => Align(
+                alignment: Alignment.topRight,
+                child: Padding(
+                  padding: const EdgeInsets.all(6),
+                  child: Icon(Icons.check_circle, color: theme.colorScheme.secondary),
                 ),
-                onDismissed: (_) async {
-                  await context.read<LibraryProvider>().moveBackToRead(book);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('“${book.title}” movido para Ler'),
-                      action: SnackBarAction(
-                        label: 'Desfazer',
-                        onPressed: () =>
-                            context.read<LibraryProvider>().markAsRead(book),
-                      ),
-                    ),
-                  );
-                },
-                child: child,
               ),
             ),
           ],
         ),
+        floatingActionButton: toRead.isEmpty
+            ? null
+            : FloatingActionButton.extended(
+                icon: const Icon(Icons.casino),
+                label: const Text('Roleta'),
+                onPressed: () async {
+                  await showGeneralDialog(
+                    context: context,
+                    barrierColor: Colors.black54,
+                    barrierDismissible: false,
+                    pageBuilder: (_, __, ___) => SizedBox.expand(
+                      child: SafeArea(
+                        child: BookRouletteFullScreen(
+                          allBooks: toRead,
+                          onPick: onOpenDetails,
+                          maxSlices: 12, // quantos setores desenhar
+                        ),
+                      ),
+                    ),
+                    transitionBuilder: (_, anim, __, child) =>
+                        FadeTransition(opacity: anim, child: child),
+                  );
+                },
+              ),
       ),
+    );
+  }
+}
+
+// Label horizontal (ícone + texto) para as abas
+class _TabLabel extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  const _TabLabel({required this.icon, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 18),
+        const SizedBox(width: 8),
+        Text(text),
+      ],
     );
   }
 }
@@ -118,73 +141,324 @@ class _BooksGrid extends StatelessWidget {
   final void Function(Book) onTap;
   final Widget Function(Book) overlayBuilder;
 
-  // Permite customizar o Dismissible por aba
-  final Widget Function(Book, Widget) buildDismissible;
-
   const _BooksGrid({
     required this.books,
     required this.onTap,
     required this.overlayBuilder,
-    required this.buildDismissible,
   });
 
   @override
   Widget build(BuildContext context) {
     if (books.isEmpty) {
-      return const Center(child: Text('Sem livros ainda.'));
+      final theme = Theme.of(context);
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.library_books_outlined,
+                  size: 40, color: theme.colorScheme.onSurfaceVariant),
+              const SizedBox(height: 10),
+              Text('Nenhum livro aqui ainda',
+                  style: theme.textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w700)),
+              const SizedBox(height: 4),
+              Text('Adicione livros nesta aba.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  )),
+            ],
+          ),
+        ),
+      );
     }
 
+    final isWide = MediaQuery.sizeOf(context).width >= 560;
+    final crossAxisCount = isWide ? 4 : 2;
+
     return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 0.64,
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 80),
+      itemCount: books.length,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: crossAxisCount,
+        childAspectRatio: 0.62,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
       ),
-      itemCount: books.length,
       itemBuilder: (context, i) {
-        final book = books[i];
-        final card = Stack(
+        final b = books[i];
+        return Stack(
           children: [
-            BookCard(
-              book: book,
-              onTap: () => onTap(book),
-              showPrice: false, // NÃO mostrar preço nas abas Ler/Lido
-            ),
-            Positioned.fill(child: overlayBuilder(book)),
+            BookCard(book: b, onTap: () => onTap(b)),
+            Positioned.fill(child: overlayBuilder(b)),
           ],
         );
-        return buildDismissible(book, card);
       },
     );
   }
 }
 
-class _ReadBadge extends StatelessWidget {
-  const _ReadBadge();
+/// ======================================
+/// ROLETA 🎡 — Full-screen, sem textos nas fatias, com ticker em cima
+/// ======================================
+class BookRouletteFullScreen extends StatefulWidget {
+  final List<Book> allBooks;              // todos os "Ler"
+  final void Function(Book) onPick;       // callback ao finalizar
+  final int maxSlices;                    // quantos setores desenhar
+
+  const BookRouletteFullScreen({
+    super.key,
+    required this.allBooks,
+    required this.onPick,
+    this.maxSlices = 12,
+  });
+
+  @override
+  State<BookRouletteFullScreen> createState() => _BookRouletteFullScreenState();
+}
+
+class _BookRouletteFullScreenState extends State<BookRouletteFullScreen>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _angleAnim;
+
+  double _currentAngle = 0.0;
+  bool _spinning = false;
+
+  // subconjunto visível + vencedor
+  late List<Book> _wheelBooks;
+  late int _winnerGlobalIndex; // índice no allBooks
+  late int _winnerSlot;        // índice na roda
+  int _livePointerSlot = 0;    // setor sob ponteiro (ao vivo)
+
+  @override
+  void initState() {
+    super.initState();
+    _controller =
+        AnimationController(vsync: this, duration: const Duration(milliseconds: 2800));
+    _prepareWheel();
+  }
+
+  void _prepareWheel() {
+    final n = widget.allBooks.length;
+    final r = Random();
+
+    // 1) vencedor justo no universo inteiro
+    _winnerGlobalIndex = r.nextInt(n);
+
+    // 2) subconjunto p/ desenhar (inclui vencedor)
+    final k = min(widget.maxSlices, n);
+    final set = <int>{_winnerGlobalIndex};
+    while (set.length < k) {
+      set.add(r.nextInt(n));
+    }
+    final indices = set.toList()..shuffle(r);
+    _winnerSlot = indices.indexOf(_winnerGlobalIndex);
+    _wheelBooks = indices.map((i) => widget.allBooks[i]).toList();
+
+    _livePointerSlot = 0;
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  int _slotUnderPointer() {
+    final n = _wheelBooks.length;
+    if (n == 0) return 0;
+    final seg = (2 * pi) / n;
+    double topAngle = -pi / 2 - _currentAngle; // topo da roda
+    while (topAngle < 0) topAngle += 2 * pi;
+    while (topAngle >= 2 * pi) topAngle -= 2 * pi;
+    return (topAngle / seg).floor() % n;
+  }
+
+  double _computeTargetAngle() {
+    final n = _wheelBooks.length;
+    final seg = (2 * pi) / n;
+    final centerOfWinner = (_winnerSlot * seg) + seg / 2;
+
+    final alignToTop = -pi / 2 - centerOfWinner;
+    const extraSpins = 4;
+    final withSpins = alignToTop + extraSpins * 2 * pi;
+
+    double delta = withSpins - _currentAngle;
+    while (delta < 0) delta += 2 * pi;
+
+    return _currentAngle + delta;
+  }
+
+  Future<void> _spin() async {
+    if (_spinning || _wheelBooks.isEmpty) return;
+    setState(() => _spinning = true);
+
+    final targetAngle = _computeTargetAngle();
+    final tween = Tween<double>(begin: _currentAngle, end: targetAngle);
+    _angleAnim =
+        CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic).drive(tween);
+
+    _controller
+      ..reset()
+      ..addStatusListener((status) async {
+        if (status == AnimationStatus.completed) {
+          _currentAngle = targetAngle;
+          _livePointerSlot = _slotUnderPointer();
+          setState(() => _spinning = false);
+
+          // pequena pausa com destaque
+          await Future.delayed(const Duration(milliseconds: 550));
+          if (mounted) Navigator.of(context).pop();
+          widget.onPick(widget.allBooks[_winnerGlobalIndex]);
+        }
+      })
+      ..addListener(() {
+        setState(() {
+          _currentAngle = _angleAnim.value;
+          _livePointerSlot = _slotUnderPointer();
+        });
+      })
+      ..forward();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.topLeft,
-      child: Padding(
-        padding: const EdgeInsets.all(10),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            color: Colors.green.shade100,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: Colors.green.withOpacity(.45)),
+    final theme = Theme.of(context);
+    final liveTitle = _wheelBooks.isEmpty ? '' : _wheelBooks[_livePointerSlot].title;
+
+    return WillPopScope(
+      onWillPop: () async => !_spinning,
+      child: Scaffold(
+        // AppBar minimalista (sem título)
+        appBar: AppBar(
+          leading: IconButton(
+            onPressed: _spinning ? null : () => Navigator.of(context).maybePop(),
+            icon: const Icon(Icons.close),
+            tooltip: 'Fechar',
           ),
-          child: Text(
-            'LIDO',
-            style: TextStyle(
-              color: Colors.green.shade700,
-              fontWeight: FontWeight.w800,
-              letterSpacing: .6,
-              fontSize: 12,
+          toolbarHeight: 44,
+          centerTitle: false,
+          titleSpacing: 0,
+          actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: FilledButton.icon(
+                onPressed: _spinning ? null : _spin,
+                icon: const Icon(Icons.casino),
+                label: Text(_spinning ? 'Girando...' : 'Girar'),
+              ),
             ),
+          ],
+        ),
+        body: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+          child: Column(
+            children: [
+              // Ticker (apenas aqui mostramos o título; nada dentro das fatias)
+              if (_wheelBooks.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 140),
+                    child: Text(
+                      _spinning ? liveTitle : _wheelBooks[_winnerSlot].title,
+                      key: ValueKey('${_spinning ? 'live' : 'win'}-$liveTitle'),
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      maxLines: 2,
+                    ),
+                  ),
+                ),
+
+              if (_wheelBooks.length < widget.allBooks.length)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    'Mostrando ${_wheelBooks.length} de ${widget.allBooks.length} livros (sorteio justo para todos).',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+
+              // Roda grande e limpa (sem textos nas fatias)
+              Expanded(
+                child: Center(
+                  child: LayoutBuilder(
+                    builder: (context, c) {
+                      final side = min(c.maxWidth, c.maxHeight) * 0.96;
+                      return SizedBox(
+                        width: side,
+                        height: side,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            Transform.rotate(
+                              angle: _currentAngle,
+                              child: CustomPaint(
+                                painter: _RoulettePainter(
+                                  books: _wheelBooks,
+                                  onSurface: theme.colorScheme.onSurface,
+                                  winnerSlot: _spinning ? null : _winnerSlot,
+                                  highlight:
+                                      theme.colorScheme.primary.withOpacity(0.18),
+                                ),
+                                child: const SizedBox.expand(),
+                              ),
+                            ),
+                            // Botão central
+                            ElevatedButton(
+                              onPressed: _spinning ? null : _spin,
+                              style: ElevatedButton.styleFrom(
+                                shape: const CircleBorder(),
+                                padding: const EdgeInsets.all(16),
+                              ),
+                              child:
+                                  Icon(_spinning ? Icons.hourglass_top : Icons.casino),
+                            ),
+                            // Ponteiro topo
+                            Align(
+                              alignment: Alignment.topCenter,
+                              child: CustomPaint(
+                                size: const Size(28, 28),
+                                painter:
+                                    _PointerPainter(color: theme.colorScheme.error),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _spinning ? null : () => Navigator.of(context).maybePop(),
+                      icon: const Icon(Icons.close),
+                      label: const Text('Cancelar'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: _spinning ? null : _spin,
+                      icon: const Icon(Icons.casino),
+                      label: Text(_spinning ? 'Girando...' : 'Girar'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       ),
@@ -192,30 +466,119 @@ class _ReadBadge extends StatelessWidget {
   }
 }
 
-Widget _swipeBg({
-  required Alignment alignment,
-  required IconData icon,
-  required String label,
-  required Color color,
-}) {
-  return Container(
-    alignment: alignment,
-    padding: const EdgeInsets.symmetric(horizontal: 16),
-    color: color.withOpacity(0.12),
-    child: Row(
-      mainAxisAlignment:
-          alignment == Alignment.centerLeft ? MainAxisAlignment.start : MainAxisAlignment.end,
-      children: [
-        if (alignment == Alignment.centerLeft) ...[
-          Icon(icon, color: color),
-          const SizedBox(width: 8),
-          Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w600)),
-        ] else ...[
-          Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w600)),
-          const SizedBox(width: 8),
-          Icon(icon, color: color),
-        ],
-      ],
-    ),
-  );
+class _RoulettePainter extends CustomPainter {
+  final List<Book> books;
+  final Color onSurface;
+  final int? winnerSlot;   // destaca vencedor quando parar
+  final Color highlight;
+
+  _RoulettePainter({
+    required this.books,
+    required this.onSurface,
+    required this.winnerSlot,
+    required this.highlight,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (books.isEmpty) return;
+
+    final n = books.length;
+    final center = size.center(Offset.zero);
+    final radius = size.shortestSide * 0.48;
+    final seg = (2 * pi) / n;
+
+    // fundo
+    final base = Paint()
+      ..style = PaintingStyle.fill
+      ..color = onSurface.withOpacity(0.04);
+    canvas.drawCircle(center, radius, base);
+
+    // contorno externo
+    final rim = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4
+      ..color = onSurface.withOpacity(0.20);
+    canvas.drawCircle(center, radius, rim);
+
+    for (int i = 0; i < n; i++) {
+      final start = i * seg;
+
+      final color = _hslColor(i, n).withOpacity(0.28);
+      final bg = Paint()..color = color;
+
+      final path = Path()
+        ..moveTo(center.dx, center.dy)
+        ..arcTo(Rect.fromCircle(center: center, radius: radius), start, seg, false)
+        ..close();
+      canvas.drawPath(path, bg);
+
+      // divisória
+      final divider = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1
+        ..color = onSurface.withOpacity(0.15);
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius),
+        start,
+        seg,
+        false,
+        divider,
+      );
+
+      // destaque do vencedor após parar
+      if (winnerSlot != null && i == winnerSlot) {
+        final glow = Paint()
+          ..shader = RadialGradient(
+            colors: [highlight, Colors.transparent],
+            stops: const [0.0, 1.0],
+          ).createShader(Rect.fromCircle(center: center, radius: radius));
+        canvas.drawPath(path, glow);
+      }
+    }
+  }
+
+  // Paleta HSL distribuída
+  Color _hslColor(int i, int n) {
+    final hue = (i * (360.0 / n)) % 360.0;
+    final hsl = HSLColor.fromAHSL(1.0, hue, 0.55, 0.45);
+    return hsl.toColor();
+  }
+
+  @override
+  bool shouldRepaint(covariant _RoulettePainter old) {
+    return old.books != books ||
+        old.onSurface != onSurface ||
+        old.winnerSlot != winnerSlot ||
+        old.highlight != highlight;
+  }
+}
+
+/// Ponteiro triangular no topo
+class _PointerPainter extends CustomPainter {
+  final Color color;
+  _PointerPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    final path = Path()
+      ..moveTo(w / 2, 0)
+      ..lineTo(0, h)
+      ..lineTo(w, h)
+      ..close();
+
+    final fill = Paint()..color = color;
+    final stroke = Paint()
+      ..color = Colors.black.withOpacity(0.15)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+
+    canvas.drawPath(path, fill);
+    canvas.drawPath(path, stroke);
+  }
+
+  @override
+  bool shouldRepaint(covariant _PointerPainter old) => old.color != color;
 }
