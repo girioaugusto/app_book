@@ -53,7 +53,7 @@ class MyApp extends StatelessWidget {
           ),
         ),
       ),
-      home: const SplashScreen(), // 👈 agora inicia pelo Splash
+      home: const SplashScreen(), 
 
     );
   }
