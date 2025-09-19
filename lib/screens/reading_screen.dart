@@ -23,49 +23,24 @@ class ReadingScreen extends StatelessWidget {
     return DefaultTabController(
       length: 2,
       child: Scaffold(
-        // ===== APPBAR: sólido (sem blur) e com bom contraste =====
         appBar: AppBar(
-          backgroundColor: theme.colorScheme.surface.withOpacity(0.95),
-          elevation: 0,
-          scrolledUnderElevation: 0,
-          shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(bottom: Radius.circular(16)),
-          ),
-          bottomOpacity: 1,
-          shadowColor: theme.colorScheme.shadow.withOpacity(0.05),
           title: Text(
             'Sua leitura 📖',
-            style: GoogleFonts.lobster(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.black),
+            style: GoogleFonts.lobster(fontSize: 26, fontWeight: FontWeight.bold),
           ),
           bottom: PreferredSize(
-            preferredSize: const Size.fromHeight(50),
+            preferredSize: const Size.fromHeight(46),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+              padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
               child: TabBar(
                 isScrollable: false,
                 dividerColor: Colors.transparent,
-                // ===== Indicador “pill” leve (não cobre toda a barra) =====
-                indicator: BoxDecoration(
-                  color: theme.colorScheme.primary.withOpacity(0.14),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: theme.colorScheme.primary.withOpacity(0.22),
-                    width: 1,
-                  ),
-                ),
-                indicatorSize: TabBarIndicatorSize.tab,
-                labelPadding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-
-                labelColor: theme.colorScheme.onSurface,
-                unselectedLabelColor:
-                    theme.colorScheme.onSurface.withOpacity(0.6),
-
-                labelStyle:
-                    const TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
-                unselectedLabelStyle:
-                    const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-
+                indicatorColor: Colors.transparent,
+                labelPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                labelColor: Colors.white,
+                unselectedLabelColor: Colors.white.withOpacity(0.55),
+                labelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
+                unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
                 tabs: const [
                   Tab(child: _TabLabel(icon: Icons.menu_book_rounded, text: 'Ler')),
                   Tab(child: _TabLabel(icon: Icons.check_circle_rounded, text: 'Lido')),
@@ -82,40 +57,31 @@ class ReadingScreen extends StatelessWidget {
                       final picked = (toRead.toList()..shuffle()).first;
                       onOpenDetails(picked);
                     },
-              icon: const Icon(Icons.shuffle),
+              icon: const Icon(Icons.shuffle, color: Colors.white),
             ),
           ],
         ),
-
-        // ===== BODY: fundo suave que não “lava” o conteúdo =====
-        body: Stack(
+        body: TabBarView(
+          physics: const NeverScrollableScrollPhysics(),
           children: [
-            const _CleanGradientBackground(),
-            TabBarView(
-              physics: const NeverScrollableScrollPhysics(),
-              children: [
-                _BooksGrid(
-                  books: toRead,
-                  onTap: onOpenDetails,
-                  overlayBuilder: (_) => const SizedBox.shrink(),
+            _BooksGrid(
+              books: toRead,
+              onTap: onOpenDetails,
+              overlayBuilder: (_) => const SizedBox.shrink(),
+            ),
+            _BooksGrid(
+              books: read,
+              onTap: onOpenDetails,
+              overlayBuilder: (b) => Align(
+                alignment: Alignment.topRight,
+                child: Padding(
+                  padding: const EdgeInsets.all(6),
+                  child: Icon(Icons.check_circle, color: theme.colorScheme.secondary),
                 ),
-                _BooksGrid(
-                  books: read,
-                  onTap: onOpenDetails,
-                  overlayBuilder: (b) => Align(
-                    alignment: Alignment.topRight,
-                    child: Padding(
-                      padding: const EdgeInsets.all(6),
-                      child: Icon(Icons.check_circle,
-                          color: theme.colorScheme.secondary),
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
           ],
         ),
-
         floatingActionButton: toRead.isEmpty
             ? null
             : FloatingActionButton.extended(
@@ -140,30 +106,6 @@ class ReadingScreen extends StatelessWidget {
                   );
                 },
               ),
-      ),
-    );
-  }
-}
-
-/// Fundo com gradiente leve (sem blur e sem overlays por cima)
-class _CleanGradientBackground extends StatelessWidget {
-  const _CleanGradientBackground();
-
-  @override
-  Widget build(BuildContext context) {
-    final c = Theme.of(context).colorScheme;
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          stops: const [0.0, 0.5, 1.0],
-          colors: [
-            c.primary.withOpacity(0.06),
-            c.tertiary.withOpacity(0.05),
-            c.surfaceVariant.withOpacity(0.04),
-          ],
-        ),
       ),
     );
   }
@@ -252,7 +194,7 @@ class _BooksGrid extends StatelessWidget {
 }
 
 /// ======================================
-/// ROLETA 🎡 — Full-screen (mantida), AppBar com bom contraste
+/// ROLETA 🎡 — Full-screen (repaginada)
 /// ======================================
 class BookRouletteFullScreen extends StatefulWidget {
   final List<Book> allBooks;              // todos os "Ler"
@@ -296,8 +238,10 @@ class _BookRouletteFullScreenState extends State<BookRouletteFullScreen>
     final n = widget.allBooks.length;
     final r = Random();
 
+    // 1) vencedor justo no universo inteiro
     _winnerGlobalIndex = r.nextInt(n);
 
+    // 2) subconjunto p/ desenhar (inclui vencedor)
     final k = min(widget.maxSlices, n);
     final set = <int>{_winnerGlobalIndex};
     while (set.length < k) {
@@ -377,64 +321,44 @@ class _BookRouletteFullScreenState extends State<BookRouletteFullScreen>
     final theme = Theme.of(context);
     final liveTitle = _wheelBooks.isEmpty ? '' : _wheelBooks[_livePointerSlot].title;
 
+    // ===== tamanhos/posicionamento =====
+    const double pointerSize = 28.0; // tamanho da seta (PointerPainter)
+    const double chipGap = 6.0;      // respiro padrão entre seta e chip
+    const double chipLift = 12.0;    // elevação extra (acima da seta, sem grudar)
+
     return WillPopScope(
       onWillPop: () async => !_spinning,
       child: Scaffold(
-        // AppBar simples e com contraste
+        // AppBar no mesmo verde do app
         appBar: AppBar(
-          backgroundColor: theme.colorScheme.surface.withOpacity(0.95),
+          backgroundColor: theme.colorScheme.primary,
+          foregroundColor: theme.colorScheme.onPrimary,
           elevation: 0,
           scrolledUnderElevation: 0,
           shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(bottom: Radius.circular(12)),
+            borderRadius: BorderRadius.vertical(bottom: Radius.circular(16)),
           ),
           leading: IconButton(
             onPressed: _spinning ? null : () => Navigator.of(context).maybePop(),
             icon: const Icon(Icons.close),
             tooltip: 'Fechar',
           ),
-          toolbarHeight: 44,
-          centerTitle: false,
-          titleSpacing: 0,
-          actions: [
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: FilledButton.icon(
-                onPressed: _spinning ? null : _spin,
-                icon: const Icon(Icons.casino),
-                label: Text(_spinning ? 'Girando...' : 'Girar'),
-              ),
-            ),
-          ],
+          title: const Text(
+            'Roleta de Livros',
+            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 20),
+          ),
         ),
+
         body: Stack(
           children: [
-            const _CleanGradientBackground(), // mesmo fundo (leve)
+            const _RouletteBackdrop(),
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+              padding: const EdgeInsets.fromLTRB(16, 6, 16, 16),
               child: Column(
                 children: [
-                  if (_wheelBooks.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 140),
-                        child: Text(
-                          _spinning ? liveTitle : _wheelBooks[_winnerSlot].title,
-                          key: ValueKey('${_spinning ? "live" : "win"}-$liveTitle'),
-                          textAlign: TextAlign.center,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          maxLines: 2,
-                        ),
-                      ),
-                    ),
-
                   if (_wheelBooks.length < widget.allBooks.length)
                     Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.only(top: 4, bottom: 2),
                       child: Text(
                         'Mostrando ${_wheelBooks.length} de ${widget.allBooks.length} livros (sorteio justo para todos).',
                         style: theme.textTheme.bodySmall?.copyWith(
@@ -443,6 +367,7 @@ class _BookRouletteFullScreenState extends State<BookRouletteFullScreen>
                       ),
                     ),
 
+                  // ===== Roda =====
                   Expanded(
                     child: Center(
                       child: LayoutBuilder(
@@ -453,7 +378,26 @@ class _BookRouletteFullScreenState extends State<BookRouletteFullScreen>
                             height: side,
                             child: Stack(
                               alignment: Alignment.center,
+                              clipBehavior: Clip.none, // permite chip acima da seta
                               children: [
+                                // aro/sombra
+                                Positioned.fill(
+                                  child: DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      gradient: RadialGradient(
+                                        radius: 0.64,
+                                        colors: [
+                                          Colors.black.withOpacity(0.10),
+                                          Colors.transparent,
+                                        ],
+                                        stops: const [0.0, 1.0],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+
+                                // roleta
                                 Transform.rotate(
                                   angle: _currentAngle,
                                   child: CustomPaint(
@@ -467,22 +411,40 @@ class _BookRouletteFullScreenState extends State<BookRouletteFullScreen>
                                     child: const SizedBox.expand(),
                                   ),
                                 ),
-                                ElevatedButton(
+
+                                // >>> CHIP ACIMA DA SETA, NÃO GRUDADO, SÓ TÍTULO <<<
+                                if (_wheelBooks.isNotEmpty)
+                                  Positioned(
+                                    top: -(pointerSize + chipGap + chipLift),
+                                    child: _TickerChip(
+                                      text: _compactTitle(
+                                        _spinning
+                                            ? liveTitle
+                                            : _wheelBooks[_winnerSlot].title,
+                                      ),
+                                      leading: const Icon(
+                                        Icons.menu_book_rounded,
+                                        size: 18,
+                                      ),
+                                      maxWidth: 240, // controla largura do chip
+                                    ),
+                                  ),
+
+                                // botão central
+                                _RoundActionButton(
+                                  enabled: !_spinning,
+                                  icon: _spinning ? Icons.hourglass_top : Icons.casino,
                                   onPressed: _spinning ? null : _spin,
-                                  style: ElevatedButton.styleFrom(
-                                    shape: const CircleBorder(),
-                                    padding: const EdgeInsets.all(16),
-                                  ),
-                                  child: Icon(
-                                    _spinning ? Icons.hourglass_top : Icons.casino,
-                                  ),
                                 ),
+
+                                // ponteiro topo
                                 Align(
                                   alignment: Alignment.topCenter,
                                   child: CustomPaint(
-                                    size: const Size(28, 28),
-                                    painter:
-                                        _PointerPainter(color: theme.colorScheme.error),
+                                    size: const Size(pointerSize, pointerSize),
+                                    painter: _PointerPainter(
+                                      color: theme.colorScheme.error,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -493,7 +455,9 @@ class _BookRouletteFullScreenState extends State<BookRouletteFullScreen>
                     ),
                   ),
 
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
+
+                  // ===== Ações (rodapé) =====
                   Row(
                     children: [
                       Expanded(
@@ -519,6 +483,183 @@ class _BookRouletteFullScreenState extends State<BookRouletteFullScreen>
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Compacta o título: corta subtítulo após ":"/"/-/–/—" e limita caracteres.
+String _compactTitle(String input) {
+  var s = input.split(RegExp(r'[:\-–—]')).first.trim();
+  const limit = 24; // ajuste fino aqui
+  if (s.length > limit) {
+    s = s.substring(0, limit).trimRight() + '…';
+  }
+  return s;
+}
+
+/// Fundo elegante: gradiente limpo + glows discretos nos cantos (sem blur)
+class _RouletteBackdrop extends StatelessWidget {
+  const _RouletteBackdrop();
+
+  @override
+  Widget build(BuildContext context) {
+    final c = Theme.of(context).colorScheme;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              stops: const [0.0, 0.55, 1.0],
+              colors: [
+                c.primary.withOpacity(0.06),
+                c.tertiary.withOpacity(0.05),
+                c.surfaceVariant.withOpacity(0.04),
+              ],
+            ),
+          ),
+        ),
+        IgnorePointer(
+          child: Stack(
+            children: [
+              Positioned(
+                left: -80,
+                top: -60,
+                child: _CornerGlow(color: c.primary.withOpacity(0.10), size: 240),
+              ),
+              Positioned(
+                right: -70,
+                bottom: -50,
+                child: _CornerGlow(color: c.secondary.withOpacity(0.10), size: 220),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CornerGlow extends StatelessWidget {
+  final Color color;
+  final double size;
+  const _CornerGlow({required this.color, required this.size});
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(
+            colors: [color, Colors.transparent],
+            stops: const [0.0, 1.0],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Chip do ticker (título compacto do setor sob o ponteiro / vencedor)
+class _TickerChip extends StatelessWidget {
+  final String text;
+  final Widget? leading;
+  final double maxWidth;
+  const _TickerChip({
+    required this.text,
+    this.leading,
+    this.maxWidth = 280,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 140),
+      child: Container(
+        key: ValueKey(text),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: theme.colorScheme.onSurface.withOpacity(0.08),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            )
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (leading != null) ...[
+              leading!,
+              const SizedBox(width: 8),
+            ],
+            ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: maxWidth),
+              child: Text(
+                text,
+                maxLines: 1, // <<< apenas 1 linha
+                overflow: TextOverflow.ellipsis, // <<< não mostrar inteiro
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Botão circular no centro da roda, com leve sombra/realce
+class _RoundActionButton extends StatelessWidget {
+  final bool enabled;
+  final IconData icon;
+  final VoidCallback? onPressed;
+
+  const _RoundActionButton({
+    required this.enabled,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: c.primary.withOpacity(enabled ? 0.30 : 0.12),
+            blurRadius: enabled ? 18 : 10,
+            spreadRadius: 1,
+          ),
+        ],
+      ),
+      child: ElevatedButton(
+        onPressed: onPressed,
+        style: ElevatedButton.styleFrom(
+          shape: const CircleBorder(),
+          padding: const EdgeInsets.all(18),
+          backgroundColor: enabled ? c.primary : c.surfaceVariant,
+          foregroundColor: enabled ? c.onPrimary : c.onSurfaceVariant,
+          elevation: 0,
+        ),
+        child: Icon(icon, size: 22),
       ),
     );
   }
