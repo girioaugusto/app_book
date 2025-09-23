@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import 'providers/tabs_controller.dart';
 import 'providers/library_provider.dart';
 
-import 'splash_screen.dart'; //
+import 'splash_screen.dart'; 
 
 void main() {
   runApp(

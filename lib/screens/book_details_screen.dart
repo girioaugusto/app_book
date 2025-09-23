@@ -7,6 +7,7 @@ import 'package:livros_app/models/book.dart';
 import 'package:livros_app/providers/library_provider.dart';
 import 'package:livros_app/utils/title_utils.dart';      // prettyTitle
 import 'package:livros_app/utils/price_formatter.dart'; // formatPrice
+import 'cafes_screen.dart'; // <- NOVO: tela de Cafés
 
 class BookDetailsScreen extends StatelessWidget {
   final Book book;
@@ -89,7 +90,7 @@ class BookDetailsScreen extends StatelessWidget {
     }
 
     return Scaffold(
-      // Barra de ação fixa no rodapé (Favorito + Ler/Lido + Compartilhar)
+      // Barra de ação fixa no rodapé (Favorito + Ler/Lido + Cafés + Compartilhar)
       bottomNavigationBar: SafeArea(
         minimum: const EdgeInsets.fromLTRB(16, 8, 16, 12),
         child: Row(
@@ -134,6 +135,24 @@ class BookDetailsScreen extends StatelessWidget {
                 label: Text(primaryTooltip),
                 onPressed: primaryOnPressed,
               ),
+            ),
+            const SizedBox(width: 12),
+
+            // ☕ Cafés (NOVO)
+            IconButton.filledTonal(
+              style: ButtonStyle(
+                shape: WidgetStateProperty.all(
+                  RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                padding: WidgetStateProperty.all(const EdgeInsets.all(14)),
+              ),
+              tooltip: 'Cafés',
+              icon: const Icon(Icons.local_cafe),
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const CafesScreen()),
+                );
+              },
             ),
             const SizedBox(width: 12),
 

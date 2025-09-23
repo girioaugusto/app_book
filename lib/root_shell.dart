@@ -1,53 +1,52 @@
+// lib/root_shell.dart
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'providers/tabs_controller.dart';
 import 'providers/library_provider.dart';
 
-import 'screens/home_presentation.dart';   // ID 1
-import 'screens/home_screen.dart';         // ID 2 (Buscar)
-import 'screens/favorites_screen.dart';    // ID 3
-import 'screens/reading_screen.dart';      // ID 4
-import 'screens/book_details_screen.dart'; // detalhes
+// Telas
+import 'screens/home_presentation.dart'; // <- Home (agora certo)
+import 'screens/home_screen.dart';       // <- Buscar
+import 'screens/favorites_screen.dart';
+import 'screens/reading_screen.dart';
+import 'screens/cafes_screen.dart';
 
 class RootShell extends StatelessWidget {
   const RootShell({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final index = context.watch<TabsController>().index;
+    final selected = context.watch<TabsController>().index;
 
-    final library = context.watch<LibraryProvider>();
-    final toRead = library.toRead;
-    final read = library.read;
-
+    // Ordem das páginas = ordem das abas abaixo
     final pages = <Widget>[
-      const HomePresentation(),
-      const HomeScreen(),
-      const FavoritesScreen(),
-      ReadingScreen(
-        toRead: toRead,
-        read: read,
-        onOpenDetails: (book) {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => BookDetailsScreen(book: book),
-            ),
-          );
-        },
+      const HomePresentation(), // Home
+      const HomeScreen(),       // Buscar
+      const FavoritesScreen(),  // Favoritos
+      ReadingScreen(            // Ler/Lido
+        toRead: context.watch<LibraryProvider>().toRead,
+        read: context.watch<LibraryProvider>().read,
+        onOpenDetails: (book) {},
       ),
+      const CafesScreen(),      // Cafés
     ];
 
+    final safeIndex = pages.isEmpty ? 0 : math.min(selected, pages.length - 1);
+
     return Scaffold(
-      body: IndexedStack(index: index, children: pages),
+      body: IndexedStack(index: safeIndex, children: pages),
       bottomNavigationBar: NavigationBar(
-        selectedIndex: index,
-        onDestinationSelected: (i) => context.read<TabsController>().setIndex(i),
+        selectedIndex: safeIndex,
+        onDestinationSelected: (i) =>
+            context.read<TabsController>().setIndex(i),
         destinations: const [
           NavigationDestination(icon: Icon(Icons.home), label: 'Home'),
           NavigationDestination(icon: Icon(Icons.search), label: 'Buscar'),
           NavigationDestination(icon: Icon(Icons.favorite), label: 'Favoritos'),
           NavigationDestination(icon: Icon(Icons.menu_book), label: 'Ler/Lido'),
+          NavigationDestination(icon: Icon(Icons.local_cafe), label: 'Cafés'),
         ],
       ),
     );
