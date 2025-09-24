@@ -1,176 +1,551 @@
-// lib/screens/cafes_screen.dart
 import 'package:flutter/material.dart';
-import '../models/cafe.dart';
-import '../services/location_services.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter/services.dart';
 import '../services/cafe_service.dart';
+import '../services/location_services.dart';
 
 class CafesScreen extends StatefulWidget {
-  const CafesScreen({super.key});
+  const CafesScreen({Key? key}) : super(key: key);
 
   @override
   State<CafesScreen> createState() => _CafesScreenState();
 }
 
 class _CafesScreenState extends State<CafesScreen> {
-  bool _loading = true;
-  String? _error;
-  List<Cafe> _cafes = [];
-  double? _userLat;
-  double? _userLng;
-  final _radius = ValueNotifier<int>(1500); // metros
+  late Future<_Result> _future;
+  String _query = '';
+  _QuickOption? _selectedQuick; // chips rápidos
 
   @override
   void initState() {
     super.initState();
-    _load();
+    _future = _load();
   }
 
-  Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
-    try {
-      final ok = await LocationServices.ensurePermission();
-      if (!ok) {
-        setState(() {
-          _loading = false;
-          _error = 'Permissão de localização negada. Habilite para ver cafés próximos.';
-        });
-        return;
+  Future<_Result> _load() async {
+    final pos = await LocationServices.currentPosition();
+
+    // ignore: avoid_print
+    print('Using location: lat=${pos.latitude}, lon=${pos.longitude}');
+
+    // 👉 Busca mais ampla (5 km) pra garantir dados
+    final cafes = await CafeService.getCafesNearby(
+      lat: pos.latitude,
+      lon: pos.longitude,
+      radiusMeters: 5000, // <-- aumentei aqui
+      limit: 80,
+    );
+
+    final items = cafes
+        .map((c) {
+          final d = LocationServices.distanceMeters(
+            lat1: pos.latitude,
+            lon1: pos.longitude,
+            lat2: c.latitude,
+            lon2: c.longitude,
+          );
+          return _CafeWithDistance(cafe: c, distanceMeters: d);
+        })
+        .toList()
+      ..sort((a, b) => a.distanceMeters.compareTo(b.distanceMeters));
+
+    return _Result(lat: pos.latitude, lon: pos.longitude, items: items);
+  }
+
+  Future<void> _refresh() async {
+    setState(() => _future = _load());
+    await _future;
+  }
+
+  String _fmt(double m) =>
+      m < 1000 ? '${m.round()} m' : '${(m / 1000).toStringAsFixed(1)} km';
+
+  Future<void> _openMaps(double lat, double lon) async {
+    final url =
+        Uri.parse("https://www.google.com/maps/search/?api=1&query=$lat,$lon");
+
+    // Tenta app; se falhar (emulador), vai de navegador
+    if (await canLaunchUrl(url)) {
+      final ok = await launchUrl(url, mode: LaunchMode.externalApplication);
+      if (!ok && mounted) {
+        await launchUrl(url, mode: LaunchMode.platformDefault);
       }
-
-      final pos = await LocationServices.currentPosition();
-      _userLat = pos.latitude;
-      _userLng = pos.longitude;
-
-      final cafes = await CafesService.fetchNearby(
-        lat: _userLat!, lng: _userLng!, radiusMeters: _radius.value,
-      );
-
-      setState(() { _cafes = cafes; _loading = false; });
-    } catch (e) {
-      setState(() { _loading = false; _error = e.toString(); });
+    } else if (mounted) {
+      await launchUrl(url, mode: LaunchMode.platformDefault);
     }
+  }
+
+  void _shareCafe(_CafeWithDistance e) async {
+    final text =
+        '${e.cafe.name}\n${e.cafe.address}\nhttps://www.google.com/maps/search/?api=1&query=${e.cafe.latitude},${e.cafe.longitude}';
+    await Clipboard.setData(ClipboardData(text: text));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Informações copiadas para compartilhar')),
+    );
+  }
+
+  void _copyAddress(String address) async {
+    await Clipboard.setData(ClipboardData(text: address));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Endereço copiado')),
+    );
+  }
+
+  // Aplica busca + chip selecionado
+  List<_CafeWithDistance> _applyFilters(List<_CafeWithDistance> items) {
+    var filtered = items;
+
+    // 1) Busca por nome
+    if (_query.trim().isNotEmpty) {
+      final q = _query.trim().toLowerCase();
+      filtered = filtered
+          .where((e) => e.cafe.name.toLowerCase().contains(q))
+          .toList();
+    }
+
+    // 2) Chips rápidos
+    switch (_selectedQuick) {
+      case _QuickOption.near500:
+        filtered = filtered.where((e) => e.distanceMeters <= 500).toList();
+        break;
+      case _QuickOption.near1000:
+        filtered = filtered.where((e) => e.distanceMeters <= 1000).toList();
+        break;
+      case _QuickOption.near2000:
+        filtered = filtered.where((e) => e.distanceMeters <= 2000).toList();
+        break;
+      case _QuickOption.bakery:
+        filtered = filtered.where((e) {
+          final n = e.cafe.name.toLowerCase();
+          final a = e.cafe.address.toLowerCase();
+          return n.contains('padaria') ||
+              a.contains('padaria') ||
+              n.contains('bakery') ||
+              a.contains('bakery');
+        }).toList();
+        break;
+      case _QuickOption.chain:
+        filtered = filtered.where((e) {
+          final n = e.cafe.name.toLowerCase();
+          return n.contains('starbucks') ||
+              n.contains('costa') ||
+              n.contains('havanna') ||
+              n.contains('coffee shop');
+        }).toList();
+        break;
+      case _QuickOption.specialty:
+        filtered = filtered.where((e) {
+          final n = e.cafe.name.toLowerCase();
+          final a = e.cafe.address.toLowerCase();
+          return n.contains('especial') ||
+              n.contains('specialty') ||
+              n.contains('espresso') ||
+              a.contains('especial');
+        }).toList();
+        break;
+      case null:
+        break;
+    }
+
+    filtered.sort((a, b) => a.distanceMeters.compareTo(b.distanceMeters));
+    return filtered;
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final brown = Colors.brown;
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('☕ Cafés'),
-        actions: [
-          IconButton(onPressed: _load, icon: const Icon(Icons.refresh))
-        ],
-      ),
-      body: _buildBody(),
-      bottomNavigationBar: _buildBottom(),
-    );
-  }
-
-  Widget _buildBody() {
-    if (_loading) return const Center(child: CircularProgressIndicator());
-    if (_error != null) return _ErrorState(message: _error!, onRetry: _load);
-    if (_cafes.isEmpty) {
-      return const _EmptyState(
-        title: 'Nenhum café encontrado por perto',
-        subtitle: 'Tente aumentar o raio de busca ou verifique o GPS.',
-      );
-    }
-
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-      itemCount: _cafes.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 10),
-      itemBuilder: (context, i) {
-        final c = _cafes[i];
-        final meters = (_userLat == null || _userLng == null)
-            ? null
-            : LocationServices.distanceMeters(
-                lat1: _userLat!, lon1: _userLng!, lat2: c.lat, lon2: c.lng);
-
-        return Card(
-          elevation: 0,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          child: ListTile(
-            leading: const CircleAvatar(child: Icon(Icons.coffee)),
-            title: Text(c.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (c.address != null)
-                  Text(c.address!, maxLines: 1, overflow: TextOverflow.ellipsis),
-                Text(meters == null ? '—' : c.distanceLabel(meters)),
-              ],
-            ),
-            trailing: const Icon(Icons.chevron_right_rounded),
-            onTap: () {
-              // Futuro: abrir no Google Maps com url_launcher
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('${c.name}\n(${c.lat.toStringAsFixed(6)}, ${c.lng.toStringAsFixed(6)})')),
-              );
-            },
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildBottom() {
-    return SafeArea(
-      child: ValueListenableBuilder<int>(
-        valueListenable: _radius,
-        builder: (context, r, _) {
-          return Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            child: Row(
-              children: [
-                const Text('Raio:'),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Slider(
-                    min: 300,
-                    max: 5000,
-                    divisions: 47,
-                    label: '${(r / 1000).toStringAsFixed(1)} km',
-                    value: r.toDouble(),
-                    onChanged: (v) => _radius.value = v.toInt(),
-                    onChangeEnd: (_) => _load(),
-                  ),
-                ),
-                FilledButton.icon(
-                  onPressed: _load,
-                  icon: const Icon(Icons.search),
-                  label: const Text('Buscar'),
-                ),
-              ],
+      backgroundColor: const Color(0xFFF6F7F9),
+      body: FutureBuilder<_Result>(
+        future: _future,
+        builder: (context, snap) {
+          final titleStyle = GoogleFonts.poppins(
+            textStyle: theme.textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
             ),
           );
+
+          if (snap.connectionState == ConnectionState.waiting) {
+            return _ScaffoldWithHeader(
+              title: 'Cafeterias próximas',
+              subtitle: 'Carregando sua localização…',
+              titleStyle: titleStyle,
+              onRefresh: _refresh,
+              onQuery: (q) => setState(() => _query = q),
+              onSelectQuick: (opt) => setState(() => _selectedQuick = opt),
+              selectedQuick: _selectedQuick,
+              child: const Center(child: CircularProgressIndicator()),
+            );
+          }
+
+          if (snap.hasError) {
+            return _ScaffoldWithHeader(
+              title: 'Cafeterias próximas',
+              subtitle: 'Algo deu errado :(',
+              titleStyle: titleStyle,
+              onRefresh: _refresh,
+              onQuery: (q) => setState(() => _query = q),
+              onSelectQuick: (opt) => setState(() => _selectedQuick = opt),
+              selectedQuick: _selectedQuick,
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.warning_amber,
+                        size: 56, color: Colors.orange),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Erro: ${snap.error}',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodyMedium
+                          ?.copyWith(color: Colors.black54),
+                    ),
+                    const SizedBox(height: 12),
+                    ElevatedButton.icon(
+                      onPressed: _refresh,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Tentar novamente'),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+
+          final data = snap.data!;
+          final list = _applyFilters(data.items);
+
+          final headerSubtitle =
+              'Usando: ${data.lat.toStringAsFixed(5)}, ${data.lon.toStringAsFixed(5)}';
+
+          return _ScaffoldWithHeader(
+            title: 'Cafeterias próximas',
+            subtitle: headerSubtitle,
+            titleStyle: titleStyle,
+            onRefresh: _refresh,
+            onQuery: (q) => setState(() => _query = q),
+            onSelectQuick: (opt) => setState(() => _selectedQuick = opt),
+            selectedQuick: _selectedQuick,
+            child: list.isEmpty
+                ? Center(
+                    child: Text(
+                      'Nenhuma cafeteria encontrada.\nTente outra opção rápida ou aumente o raio.',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodyLarge
+                          ?.copyWith(color: Colors.black54),
+                    ),
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    itemCount: list.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 12),
+                    itemBuilder: (context, i) {
+                      final e = list[i];
+                      return _CafeCard(
+                        name: e.cafe.name,
+                        address: e.cafe.address,
+                        distanceLabel: _fmt(e.distanceMeters),
+                        onTapRoute: () =>
+                            _openMaps(e.cafe.latitude, e.cafe.longitude),
+                        onTapShare: () => _shareCafe(e),
+                        onTapCopy: () => _copyAddress(e.cafe.address),
+                        accent: brown,
+                      );
+                    },
+                  ),
+          );
         },
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _refresh,
+        icon: const Icon(Icons.my_location),
+        label: const Text('Atualizar'),
+        backgroundColor: Colors.green.shade600,
       ),
     );
   }
 }
 
-class _EmptyState extends StatelessWidget {
+/* --------------------------- Layout com header --------------------------- */
+
+class _ScaffoldWithHeader extends StatelessWidget {
   final String title;
   final String subtitle;
-  const _EmptyState({required this.title, required this.subtitle});
+  final TextStyle? titleStyle;
+  final Widget child;
+  final Future<void> Function() onRefresh;
+  final ValueChanged<String> onQuery;
+  final ValueChanged<_QuickOption?> onSelectQuick;
+  final _QuickOption? selectedQuick;
+
+  const _ScaffoldWithHeader({
+    required this.title,
+    required this.subtitle,
+    required this.titleStyle,
+    required this.child,
+    required this.onRefresh,
+    required this.onQuery,
+    required this.onSelectQuick,
+    required this.selectedQuick,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+    final top = MediaQuery.of(context).padding.top;
+
+    return RefreshIndicator(
+      onRefresh: onRefresh,
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          SliverToBoxAdapter(
+            child: _Header(
+              title: title,
+              subtitle: subtitle,
+              titleStyle: titleStyle,
+              topPadding: top,
+              onQuery: onQuery,
+              onSelectQuick: onSelectQuick,
+              selectedQuick: selectedQuick,
+            ),
+          ),
+          SliverToBoxAdapter(child: child),
+        ],
+      ),
+    );
+  }
+}
+
+class _Header extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final TextStyle? titleStyle;
+  final double topPadding;
+  final ValueChanged<String> onQuery;
+  final ValueChanged<_QuickOption?> onSelectQuick;
+  final _QuickOption? selectedQuick;
+
+  const _Header({
+    required this.title,
+    required this.subtitle,
+    required this.titleStyle,
+    required this.topPadding,
+    required this.onQuery,
+    required this.onSelectQuick,
+    required this.selectedQuick,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final gradient = LinearGradient(
+      colors: [Colors.green.shade700, Colors.green.shade400],
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+    );
+
+    return Container(
+      padding: EdgeInsets.fromLTRB(16, topPadding + 16, 16, 12),
+      decoration: BoxDecoration(gradient: gradient),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: titleStyle),
+          const SizedBox(height: 6),
+          Text(
+            subtitle,
+            style: GoogleFonts.inter(
+              textStyle: const TextStyle(
+                color: Colors.white70,
+                fontSize: 12.5,
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          _SearchField(onChanged: onQuery),
+          const SizedBox(height: 10),
+          _QuickOptionsRow(
+            selected: selectedQuick,
+            onSelect: onSelectQuick,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SearchField extends StatefulWidget {
+  final ValueChanged<String> onChanged;
+  const _SearchField({required this.onChanged});
+
+  @override
+  State<_SearchField> createState() => _SearchFieldState();
+}
+
+class _SearchFieldState extends State<_SearchField> {
+  final controller = TextEditingController();
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      elevation: 2,
+      borderRadius: BorderRadius.circular(14),
+      child: TextField(
+        controller: controller,
+        onChanged: widget.onChanged,
+        decoration: InputDecoration(
+          hintText: 'Buscar por nome…',
+          prefixIcon: const Icon(Icons.search),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide.none,
+          ),
+          filled: true,
+          fillColor: Colors.white,
+          contentPadding:
+              const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        ),
+      ),
+    );
+  }
+}
+
+/* -------------------------- Opções rápidas (chips) ------------------------- */
+
+enum _QuickOption {
+  near500,
+  near1000,
+  near2000,
+  bakery,
+  chain,
+  specialty,
+}
+
+extension on _QuickOption {
+  String get label {
+    switch (this) {
+      case _QuickOption.near500:
+        return 'Até 500 m';
+      case _QuickOption.near1000:
+        return 'Até 1 km';
+      case _QuickOption.near2000:
+        return 'Até 2 km';
+      case _QuickOption.bakery:
+        return 'Padaria';
+      case _QuickOption.chain:
+        return 'Starbucks & cia';
+      case _QuickOption.specialty:
+        return 'Café especial';
+    }
+  }
+
+  IconData get icon {
+    switch (this) {
+      case _QuickOption.near500:
+        return Icons.directions_walk;
+      case _QuickOption.near1000:
+        return Icons.directions_bike;
+      case _QuickOption.near2000:
+        return Icons.directions_car;
+      case _QuickOption.bakery:
+        return Icons.cookie_outlined;
+      case _QuickOption.chain:
+        return Icons.local_cafe_outlined;
+      case _QuickOption.specialty:
+        return Icons.emoji_food_beverage;
+    }
+  }
+}
+
+class _QuickOptionsRow extends StatelessWidget {
+  final _QuickOption? selected;
+  final ValueChanged<_QuickOption?> onSelect;
+  const _QuickOptionsRow({required this.selected, required this.onSelect});
+
+  @override
+  Widget build(BuildContext context) {
+    final opts = _QuickOption.values;
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          for (final o in opts) ...[
+            _QuickChip(
+              label: o.label,
+              icon: o.icon,
+              selected: selected == o,
+              onTap: () => onSelect(selected == o ? null : o),
+            ),
+            const SizedBox(width: 8),
+          ],
+          _QuickChip(
+            label: 'Limpar',
+            icon: Icons.close,
+            selected: selected == null,
+            onTap: () => onSelect(null),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _QuickChip extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _QuickChip({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final sel = selected;
+    final bg = sel ? Colors.white : Colors.white.withOpacity(0.2);
+    final fg = sel ? Colors.green.shade800 : Colors.white;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(20),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: sel ? Colors.white : Colors.white.withOpacity(0.6),
+          ),
+        ),
+        child: Row(
           children: [
-            const Icon(Icons.coffee_outlined, size: 64, color: Colors.black38),
-            const SizedBox(height: 12),
-            Text(title, style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 6),
+            Icon(icon, size: 16, color: fg),
+            const SizedBox(width: 6),
             Text(
-              subtitle,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Colors.black54,
+              label,
+              style: GoogleFonts.inter(
+                textStyle: TextStyle(
+                  color: fg,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ],
@@ -180,33 +555,195 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-class _ErrorState extends StatelessWidget {
-  final String message;
-  final VoidCallback onRetry;
-  const _ErrorState({required this.message, required this.onRetry});
+/* --------------------------- Card dos cafés --------------------------- */
+
+class _CafeCard extends StatelessWidget {
+  final String name;
+  final String address;
+  final String distanceLabel;
+  final VoidCallback onTapRoute;
+  final VoidCallback onTapShare;
+  final VoidCallback onTapCopy;
+  final Color accent;
+
+  const _CafeCard({
+    required this.name,
+    required this.address,
+    required this.distanceLabel,
+    required this.onTapRoute,
+    required this.onTapShare,
+    required this.onTapCopy,
+    required this.accent,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.error_outline, size: 64, color: Colors.redAccent),
-            const SizedBox(height: 12),
-            Text('Ops!', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 6),
-            Text(message, textAlign: TextAlign.center),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Tentar novamente'),
-            ),
-          ],
+    final title = GoogleFonts.poppins(
+      textStyle: Theme.of(context)
+          .textTheme
+          .titleMedium
+          ?.copyWith(fontWeight: FontWeight.w700),
+    );
+
+    final subtitle = GoogleFonts.inter(
+      textStyle:
+          Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.black54),
+    );
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        gradient: LinearGradient(
+          colors: [Colors.white, Colors.grey.shade50],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // Ícone arredondado
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: accent.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(Icons.local_cafe, color: accent, size: 28),
+          ),
+          const SizedBox(width: 12),
+
+          // Texto + ações
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name,
+                    maxLines: 1, overflow: TextOverflow.ellipsis, style: title),
+                const SizedBox(height: 4),
+                Text(
+                  address.isEmpty || address == 'Endereço indisponível'
+                      ? 'Endereço não informado'
+                      : address,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: subtitle,
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    _DistanceChip(distanceLabel: distanceLabel, accent: accent),
+                    const Spacer(),
+                    // Opções no card:
+                    _MiniAction(
+                      icon: Icons.map_outlined,
+                      label: 'Rotas',
+                      onTap: onTapRoute,
+                      color: Colors.green.shade700,
+                    ),
+                    const SizedBox(width: 8),
+                    _MiniAction(
+                      icon: Icons.share_outlined,
+                      label: 'Compartilhar',
+                      onTap: onTapShare,
+                      color: Colors.blueGrey.shade700,
+                    ),
+                    const SizedBox(width: 8),
+                    _MiniAction(
+                      icon: Icons.copy_all_outlined,
+                      label: 'Copiar',
+                      onTap: onTapCopy,
+                      color: Colors.brown.shade700,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
+}
+
+class _MiniAction extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final Color color;
+  const _MiniAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextButton.icon(
+      onPressed: onTap,
+      style: TextButton.styleFrom(
+        foregroundColor: color,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        minimumSize: const Size(0, 0),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        visualDensity: VisualDensity.compact,
+      ),
+      icon: Icon(icon, size: 18),
+      label: Text(label),
+    );
+  }
+}
+
+class _DistanceChip extends StatelessWidget {
+  final String distanceLabel;
+  final Color accent;
+  const _DistanceChip({required this.distanceLabel, required this.accent});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: accent.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: accent.withOpacity(0.25)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.near_me, size: 16, color: accent),
+          const SizedBox(width: 6),
+          Text(
+            distanceLabel,
+            style: GoogleFonts.inter(
+              textStyle: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/* -------------------------------- modelos -------------------------------- */
+
+class _Result {
+  final double lat, lon;
+  final List<_CafeWithDistance> items;
+  _Result({required this.lat, required this.lon, required this.items});
+}
+
+class _CafeWithDistance {
+  final Cafe cafe;
+  final double distanceMeters;
+  _CafeWithDistance({required this.cafe, required this.distanceMeters});
 }
