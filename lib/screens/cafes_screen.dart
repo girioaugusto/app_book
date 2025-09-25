@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:flutter/services.dart';
 import '../services/cafe_service.dart';
 import '../services/location_services.dart';
 
@@ -74,24 +73,6 @@ class _CafesScreenState extends State<CafesScreen> {
     } else if (mounted) {
       await launchUrl(url, mode: LaunchMode.platformDefault);
     }
-  }
-
-  void _shareCafe(_CafeWithDistance e) async {
-    final text =
-        '${e.cafe.name}\n${e.cafe.address}\nhttps://www.google.com/maps/search/?api=1&query=${e.cafe.latitude},${e.cafe.longitude}';
-    await Clipboard.setData(ClipboardData(text: text));
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Informações copiadas para compartilhar')),
-    );
-  }
-
-  void _copyAddress(String address) async {
-    await Clipboard.setData(ClipboardData(text: address));
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Endereço copiado')),
-    );
   }
 
   // Aplica busca + chip selecionado
@@ -236,7 +217,7 @@ class _CafesScreenState extends State<CafesScreen> {
             child: list.isEmpty
                 ? Center(
                     child: Text(
-                      'Nenhuma cafeteria encontrada.\nTente outra opção rápida ou aumente o raio.',
+                      'Nenhuma cafeteria encontrada.\nTente outra opção.',
                       textAlign: TextAlign.center,
                       style: theme.textTheme.bodyLarge
                           ?.copyWith(color: Colors.black54),
@@ -244,7 +225,12 @@ class _CafesScreenState extends State<CafesScreen> {
                   )
                 : ListView.separated(
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                    physics: const AlwaysScrollableScrollPhysics(),
+
+                    // ✅ Ajustes essenciais para funcionar dentro de SliverToBoxAdapter:
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    primary: false,
+
                     itemCount: list.length,
                     separatorBuilder: (_, __) => const SizedBox(height: 12),
                     itemBuilder: (context, i) {
@@ -255,8 +241,6 @@ class _CafesScreenState extends State<CafesScreen> {
                         distanceLabel: _fmt(e.distanceMeters),
                         onTapRoute: () =>
                             _openMaps(e.cafe.latitude, e.cafe.longitude),
-                        onTapShare: () => _shareCafe(e),
-                        onTapCopy: () => _copyAddress(e.cafe.address),
                         accent: brown,
                       );
                     },
@@ -562,8 +546,6 @@ class _CafeCard extends StatelessWidget {
   final String address;
   final String distanceLabel;
   final VoidCallback onTapRoute;
-  final VoidCallback onTapShare;
-  final VoidCallback onTapCopy;
   final Color accent;
 
   const _CafeCard({
@@ -571,8 +553,6 @@ class _CafeCard extends StatelessWidget {
     required this.address,
     required this.distanceLabel,
     required this.onTapRoute,
-    required this.onTapShare,
-    required this.onTapCopy,
     required this.accent,
   });
 
@@ -639,30 +619,17 @@ class _CafeCard extends StatelessWidget {
                   style: subtitle,
                 ),
                 const SizedBox(height: 10),
+
+                // Só distância + botão Rotas (sem overflows)
                 Row(
                   children: [
                     _DistanceChip(distanceLabel: distanceLabel, accent: accent),
                     const Spacer(),
-                    // Opções no card:
                     _MiniAction(
                       icon: Icons.map_outlined,
                       label: 'Rotas',
                       onTap: onTapRoute,
                       color: Colors.green.shade700,
-                    ),
-                    const SizedBox(width: 8),
-                    _MiniAction(
-                      icon: Icons.share_outlined,
-                      label: 'Compartilhar',
-                      onTap: onTapShare,
-                      color: Colors.blueGrey.shade700,
-                    ),
-                    const SizedBox(width: 8),
-                    _MiniAction(
-                      icon: Icons.copy_all_outlined,
-                      label: 'Copiar',
-                      onTap: onTapCopy,
-                      color: Colors.brown.shade700,
                     ),
                   ],
                 ),
@@ -719,6 +686,7 @@ class _DistanceChip extends StatelessWidget {
         border: Border.all(color: accent.withOpacity(0.25)),
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Icon(Icons.near_me, size: 16, color: accent),
           const SizedBox(width: 6),
