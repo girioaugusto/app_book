@@ -226,7 +226,7 @@ class _BookSkeletonCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(14),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.06),
+          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.06),
           borderRadius: BorderRadius.circular(14),
         ),
       ),
@@ -247,7 +247,7 @@ class _EmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.menu_book, size: 64, color: Colors.black38),
+            Icon(Icons.menu_book, size: 64, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.38)),
             const SizedBox(height: 12),
             Text(title, style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 6),
@@ -255,7 +255,7 @@ class _EmptyState extends StatelessWidget {
               subtitle,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Colors.black54,
+                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.54),
                   ),
             ),
           ],
@@ -278,7 +278,7 @@ class _ErrorState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.wifi_off, size: 64, color: Colors.black38),
+            Icon(Icons.wifi_off, size: 64, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.38)),
             const SizedBox(height: 12),
             Text('Ops!', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
@@ -286,7 +286,7 @@ class _ErrorState extends StatelessWidget {
               message,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Colors.black54,
+                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.54),
                   ),
             ),
             const SizedBox(height: 16),

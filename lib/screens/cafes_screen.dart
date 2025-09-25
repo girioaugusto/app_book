@@ -32,7 +32,7 @@ class _CafesScreenState extends State<CafesScreen> {
     final cafes = await CafeService.getCafesNearby(
       lat: pos.latitude,
       lon: pos.longitude,
-      radiusMeters: 5000, // <-- aumentei aqui
+      radiusMeters: 5000,
       limit: 80,
     );
 
@@ -138,10 +138,14 @@ class _CafesScreenState extends State<CafesScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final brown = Colors.brown;
 
+    // Fundo do Scaffold: claro no light, "surface" no dark
+    final scaffoldBg = isDark ? theme.colorScheme.surface : const Color(0xFFF6F7F9);
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F7F9),
+      backgroundColor: scaffoldBg,
       body: FutureBuilder<_Result>(
         future: _future,
         builder: (context, snap) {
@@ -185,8 +189,9 @@ class _CafesScreenState extends State<CafesScreen> {
                     Text(
                       'Erro: ${snap.error}',
                       textAlign: TextAlign.center,
-                      style: theme.textTheme.bodyMedium
-                          ?.copyWith(color: Colors.black54),
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurface.withOpacity(0.54),
+                      ),
                     ),
                     const SizedBox(height: 12),
                     ElevatedButton.icon(
@@ -219,8 +224,9 @@ class _CafesScreenState extends State<CafesScreen> {
                     child: Text(
                       'Nenhuma cafeteria encontrada.\nTente outra opção.',
                       textAlign: TextAlign.center,
-                      style: theme.textTheme.bodyLarge
-                          ?.copyWith(color: Colors.black54),
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        color: theme.colorScheme.onSurface.withOpacity(0.54),
+                      ),
                     ),
                   )
                 : ListView.separated(
@@ -384,6 +390,12 @@ class _SearchFieldState extends State<_SearchField> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    // No dark, usar a "surface" pra o campo não ficar branco
+    final fill = isDark ? theme.colorScheme.surface : Colors.white;
+
     return Material(
       elevation: 2,
       borderRadius: BorderRadius.circular(14),
@@ -398,7 +410,7 @@ class _SearchFieldState extends State<_SearchField> {
             borderSide: BorderSide.none,
           ),
           filled: true,
-          fillColor: Colors.white,
+          fillColor: fill,
           contentPadding:
               const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
         ),
@@ -558,29 +570,35 @@ class _CafeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     final title = GoogleFonts.poppins(
-      textStyle: Theme.of(context)
-          .textTheme
-          .titleMedium
-          ?.copyWith(fontWeight: FontWeight.w700),
+      textStyle:
+          theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
     );
 
     final subtitle = GoogleFonts.inter(
-      textStyle:
-          Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.black54),
+      textStyle: theme.textTheme.bodySmall?.copyWith(
+        color: theme.colorScheme.onSurface.withOpacity(0.54),
+      ),
     );
+
+    // Fundo do card: claro no light, "surface/surfaceVariant" no dark
+    final cardStart = isDark ? theme.colorScheme.surface : Colors.white;
+    final cardEnd = isDark ? theme.colorScheme.surfaceVariant : Colors.grey.shade50;
 
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
         gradient: LinearGradient(
-          colors: [Colors.white, Colors.grey.shade50],
+          colors: [cardStart, cardEnd],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: theme.colorScheme.onSurface.withOpacity(0.04),
             blurRadius: 10,
             offset: const Offset(0, 6),
           ),

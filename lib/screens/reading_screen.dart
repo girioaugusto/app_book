@@ -116,7 +116,7 @@ class ReadingScreen extends StatelessWidget {
                 onPressed: () async {
                   await showGeneralDialog(
                     context: context,
-                    barrierColor: Colors.black54,
+                    barrierColor: Theme.of(context).colorScheme.onSurface.withOpacity(0.54),
                     barrierDismissible: false,
                     pageBuilder: (_, __, ___) => SizedBox.expand(
                       child: SafeArea(
@@ -394,7 +394,7 @@ class _BookRouletteFullScreenState extends State<BookRouletteFullScreen>
                                       gradient: RadialGradient(
                                         radius: 0.64,
                                         colors: [
-                                          Colors.black.withOpacity(0.10),
+                                          Theme.of(context).colorScheme.onSurface.withOpacity(0.10),
                                           Colors.transparent,
                                         ],
                                         stops: const [0.0, 1.0],
@@ -450,6 +450,7 @@ class _BookRouletteFullScreenState extends State<BookRouletteFullScreen>
                                     size: const Size(pointerSize, pointerSize),
                                     painter: _PointerPainter(
                                       color: theme.colorScheme.error,
+                                      strokeColor: theme.colorScheme.onSurface.withOpacity(0.15),
                                     ),
                                   ),
                                 ),
@@ -599,7 +600,8 @@ class _TickerChip extends StatelessWidget {
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.06),
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+
               blurRadius: 10,
               offset: const Offset(0, 4),
             )
@@ -761,8 +763,13 @@ class _RoulettePainter extends CustomPainter {
 
 /// Ponteiro triangular no topo
 class _PointerPainter extends CustomPainter {
-  final Color color;
-  _PointerPainter({required this.color});
+  final Color color;       // cor de preenchimento
+  final Color strokeColor; // cor da borda
+
+  _PointerPainter({
+    required this.color,
+    required this.strokeColor,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -776,7 +783,7 @@ class _PointerPainter extends CustomPainter {
 
     final fill = Paint()..color = color;
     final stroke = Paint()
-      ..color = Colors.black.withOpacity(0.15)
+      ..color = strokeColor
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1;
 
@@ -785,5 +792,6 @@ class _PointerPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _PointerPainter old) => old.color != color;
+  bool shouldRepaint(covariant _PointerPainter old) =>
+      old.color != color || old.strokeColor != strokeColor;
 }

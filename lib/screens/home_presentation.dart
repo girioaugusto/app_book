@@ -81,10 +81,13 @@ class HomePresentation extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 10),
-              const Text(
+              Text(
                 "Gerencie sua biblioteca, acompanhe o progresso e guarde seus favoritos.",
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 16, color: Colors.black87),
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.87),
+                ),
               ),
 
               const SizedBox(height: 60),
