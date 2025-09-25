@@ -32,7 +32,7 @@ class ReadingScreen extends StatelessWidget {
               fontSize: 32,              // 👈 maior
               fontWeight: FontWeight.w700,
               height: 1.1,
-              color: theme.colorScheme.primary, // destaque no verde do app
+              color: Colors.white // destaque no verde do app
             ),
           ),
           bottom: PreferredSize(
@@ -55,7 +55,7 @@ class ReadingScreen extends StatelessWidget {
                         borderRadius: BorderRadius.circular(10),
                       ),
                       labelColor: c.onPrimary,                   // texto branco selecionada
-                      unselectedLabelColor: c.primary,           // texto verde nas outras
+                      unselectedLabelColor: Colors.blueGrey,           // texto cinza nas outras
                       labelStyle: const TextStyle(
                         fontWeight: FontWeight.w900,
                         fontSize: 14,

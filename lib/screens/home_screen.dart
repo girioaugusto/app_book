@@ -102,7 +102,7 @@ class _HomeScreenState extends State<HomeScreen> {
             style: GoogleFonts.lobster(
               fontSize: 32,
               fontWeight: FontWeight.w700,
-              color: cs.primary, // verde do tema
+              color: Colors.white, // verde do tema
               height: 1.1,
             ),
           ),

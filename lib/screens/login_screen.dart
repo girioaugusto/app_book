@@ -83,13 +83,32 @@ class _LoginScreenState extends State<LoginScreen> {
                 shrinkWrap: true,
                 children: [
                   const SizedBox(height: 24),
-                  Icon(Icons.lock_outline, size: 72, color: cs.primary),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Entrar',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.headlineSmall,
+
+                  // ====== LOGO DO APP (sem fallback de cadeado) ======
+                  Center(
+                    child: SizedBox(
+                      height: 200, // ⬅️ logo maior
+                      child: Image.asset(
+                        'lib/assets/logo.png', // mantém seu caminho
+                        fit: BoxFit.contain,
+                        semanticLabel: 'Logo do aplicativo',
+                      ),
+                    ),
                   ),
+
+                  const SizedBox(height: 16),
+
+                  // ====== FRASE INSPIRADORA ======
+                  Text(
+                    'Entre para explorar novos mundos 📚☕',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w600,
+                          color: cs.primary,
+                        ),
+                  ),
+
                   const SizedBox(height: 24),
 
                   // Usuário
