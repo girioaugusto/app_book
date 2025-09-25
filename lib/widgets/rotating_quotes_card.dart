@@ -5,16 +5,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:livros_app/data/quotes.dart';
 
 class RotatingQuoteCard extends StatefulWidget {
-  /// Mostra 1 frase por dia (determinística), sem timer.
   final bool dailyOnly;
-
-  /// Troca automática (ignorada se [dailyOnly] = true).
   final bool autoRotate;
-
-  /// Intervalo da troca automática.
   final Duration interval;
-
-  /// Persiste o último índice (ignorado se [dailyOnly] = true).
   final bool rememberLast;
 
   const RotatingQuoteCard({
@@ -50,7 +43,6 @@ class _RotatingQuoteCardState extends State<RotatingQuoteCard> {
 
   int _initialIndex() {
     if (widget.dailyOnly) {
-      // índice “do dia” (determinístico)
       final days = DateTime.now()
           .toUtc()
           .difference(DateTime.utc(2020, 1, 1))
@@ -90,7 +82,7 @@ class _RotatingQuoteCardState extends State<RotatingQuoteCard> {
 
     return GestureDetector(
       onTap: () {
-        if (!widget.dailyOnly) _next(); // toque avança (se não for diário)
+        if (!widget.dailyOnly) _next();
       },
       child: Container(
         width: double.infinity,
@@ -131,12 +123,14 @@ class _QuoteView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
     final body = Theme.of(context).textTheme.bodyMedium?.copyWith(
           fontStyle: FontStyle.italic,
-          color: Colors.black87,
+          color: cs.onSurface.withOpacity(0.87), // muda conforme tema
         );
     final authorStyle = Theme.of(context).textTheme.labelLarge?.copyWith(
-          color: Colors.black54,
+          color: cs.onSurfaceVariant, // muda conforme tema
           fontWeight: FontWeight.w700,
         );
 
@@ -144,7 +138,8 @@ class _QuoteView extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Icon(Icons.format_quote_rounded, size: 28, color: Colors.black38),
+          Icon(Icons.format_quote_rounded,
+              size: 28, color: cs.onSurfaceVariant),
           const SizedBox(width: 10),
           Expanded(child: Text(text, style: body)),
         ]),

@@ -42,7 +42,6 @@ class HomePresentation extends StatelessWidget {
     final isDark = themeCtrl.mode == ThemeMode.dark;
 
     return Scaffold(
-      // 🔝 Opções no topo
       appBar: AppBar(
         actions: [
           IconButton(
@@ -70,7 +69,7 @@ class HomePresentation extends StatelessWidget {
 
               const SizedBox(height: 20),
 
-              // TÍTULO + DESCRIÇÃO (sem ícones aqui para não duplicar)
+              // TÍTULO + DESCRIÇÃO
               const Text(
                 "Bem-vindo ao Entre Páginas",
                 textAlign: TextAlign.center,
@@ -98,12 +97,13 @@ class HomePresentation extends StatelessWidget {
                 children: [
                   _Feature(icon: Icons.library_books, label: "Biblioteca"),
                   _Feature(icon: Icons.favorite, label: "Favoritos"),
-                  _Feature(icon: Icons.bar_chart, label: "Progresso"),
+                  _Feature(icon: Icons.coffee, label: "Cafés"),
                 ],
               ),
 
               const SizedBox(height: 60),
 
+              // Frase do dia (cor muda automaticamente no DARK)
               const RotatingQuoteCard(dailyOnly: true),
 
               const Spacer(),
@@ -113,7 +113,6 @@ class HomePresentation extends StatelessWidget {
                 width: double.infinity,
                 child: ElevatedButton.icon(
                   onPressed: () {
-                    // Ir para a aba Buscar (índice 1)
                     context.read<TabsController>().setIndex(1);
                   },
                   icon: const Icon(Icons.add),
