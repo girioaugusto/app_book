@@ -37,6 +37,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final lib = context.watch<LibraryProvider>();
+    final cs = Theme.of(context).colorScheme;
 
     Widget body;
     if (lib.isLoading) {
@@ -90,27 +91,32 @@ class _HomeScreenState extends State<HomeScreen> {
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
       child: Scaffold(
+        // AppBar única com título grande e barra de busca no "bottom"
         appBar: AppBar(
+          centerTitle: true,
+          toolbarHeight: 88,
+          elevation: 0,
+          scrolledUnderElevation: 0,
           title: Text(
-            '🔎 Buscar livros',
+            'Buscar livros 🔎',
             style: GoogleFonts.lobster(
-              fontSize: 30,
-              fontWeight: FontWeight.bold,
+              fontSize: 32,
+              fontWeight: FontWeight.w700,
+              color: cs.primary, // verde do tema
+              height: 1.1,
             ),
           ),
           actions: [
             IconButton(
               icon: const Icon(Icons.refresh),
-              onPressed: () => lib.searchBooks(_controller.text.trim()),
               tooltip: 'Buscar novamente',
+              onPressed: () => lib.searchBooks(_controller.text.trim()),
             ),
           ],
-        ),
-        body: Column(
-          children: [
-            // --- BARRA DE BUSCA ---
-            Padding(
-              padding: const EdgeInsets.all(12),
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(76),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
               child: Row(
                 children: [
                   Expanded(
@@ -118,9 +124,14 @@ class _HomeScreenState extends State<HomeScreen> {
                       controller: _controller,
                       textInputAction: TextInputAction.search,
                       decoration: InputDecoration(
-                        border: const OutlineInputBorder(),
-                        hintText: 'Digite um termo (ex.: flutter, clean code...)',
+                        hintText: 'Ex.: flutter, clean code…',
                         prefixIcon: const Icon(Icons.search),
+                        isDense: true,
+                        filled: true,
+                        fillColor: Theme.of(context).colorScheme.surface,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                         suffixIcon: _controller.text.isEmpty
                             ? null
                             : IconButton(
@@ -139,18 +150,15 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(width: 8),
                   FilledButton(
                     onPressed: () => lib.searchBooks(_controller.text.trim()),
-                    child: const Text(
-                      'Buscar'
-                    ),
+                    child: const Text('Buscar'),
                   ),
                 ],
               ),
             ),
-
-            // --- CONTEÚDO ---
-            Expanded(child: body),
-          ],
+          ),
         ),
+
+        body: body,
       ),
     );
   }

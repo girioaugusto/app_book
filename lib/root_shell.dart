@@ -7,11 +7,12 @@ import 'providers/tabs_controller.dart';
 import 'providers/library_provider.dart';
 
 // Telas
-import 'screens/home_presentation.dart'; // <- Home (agora certo)
-import 'screens/home_screen.dart';       // <- Buscar
-import 'screens/favorites_screen.dart';
-import 'screens/reading_screen.dart';
-import 'screens/cafes_screen.dart';
+import 'screens/home_presentation.dart'; // 0 - Home
+import 'screens/home_screen.dart';       // 1 - Buscar
+import 'screens/favorites_screen.dart';  // 2 - Favoritos
+import 'screens/reading_screen.dart';    // 3 - Ler/Lido
+import 'screens/cafes_screen.dart';      // 4 - Cafés
+import 'screens/book_details_screen.dart'; // 👈 para navegar aos detalhes
 
 class RootShell extends StatelessWidget {
   const RootShell({super.key});
@@ -20,23 +21,36 @@ class RootShell extends StatelessWidget {
   Widget build(BuildContext context) {
     final selected = context.watch<TabsController>().index;
 
-    // Ordem das páginas = ordem das abas abaixo
     final pages = <Widget>[
-      const HomePresentation(), // Home
-      const HomeScreen(),       // Buscar
-      const FavoritesScreen(),  // Favoritos
-      ReadingScreen(            // Ler/Lido
+      const HomePresentation(),
+      const HomeScreen(),
+      const FavoritesScreen(),
+      ReadingScreen(
         toRead: context.watch<LibraryProvider>().toRead,
         read: context.watch<LibraryProvider>().read,
-        onOpenDetails: (book) {},
+        onOpenDetails: (book) {
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => BookDetailsScreen(book: book)),
+          );
+        },
       ),
-      const CafesScreen(),      // Cafés
+      const CafesScreen(),
     ];
 
     final safeIndex = pages.isEmpty ? 0 : math.min(selected, pages.length - 1);
 
     return Scaffold(
-      body: IndexedStack(index: safeIndex, children: pages),
+      body: IndexedStack(
+        index: safeIndex,
+        children: [
+          // ✅ Só a aba ativa participa de animações Hero (evita tags duplicadas)
+          for (var i = 0; i < pages.length; i++)
+            HeroMode(
+              enabled: i == safeIndex,
+              child: pages[i],
+            ),
+        ],
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: safeIndex,
         onDestinationSelected: (i) =>

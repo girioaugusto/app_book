@@ -1,6 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
+
+import 'services/auth_service.dart';
+import 'providers/tabs_controller.dart';
+
 import 'root_shell.dart';
+import 'screens/login_screen.dart';
+// Se quiser abrir direto a HomeScreen (sem RootShell), descomente a linha abaixo
+// import 'home_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -39,8 +47,14 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     _fade = CurvedAnimation(parent: _introCtrl, curve: Curves.easeIn);
 
     _scale = TweenSequence<double>([
-      TweenSequenceItem(tween: Tween(begin: 0.6, end: 1.15).chain(CurveTween(curve: Curves.easeOutBack)), weight: 70),
-      TweenSequenceItem(tween: Tween(begin: 1.15, end: 1.0).chain(CurveTween(curve: Curves.easeIn)), weight: 30),
+      TweenSequenceItem(
+        tween: Tween(begin: 0.6, end: 1.15).chain(CurveTween(curve: Curves.easeOutBack)),
+        weight: 70,
+      ),
+      TweenSequenceItem(
+        tween: Tween(begin: 1.15, end: 1.0).chain(CurveTween(curve: Curves.easeIn)),
+        weight: 30,
+      ),
     ]).animate(_introCtrl);
 
     _rotate = Tween<double>(begin: -0.06, end: 0.0)
@@ -72,13 +86,31 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
       curve: const Interval(0.45, 1.0, curve: Curves.easeOut),
     ));
 
-    // Navegar para a home
+    // ✅ Decidir destino após ~2.6s
     Future.delayed(const Duration(milliseconds: 2600), () {
       if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const RootShell()),
-      );
+      final auth = context.read<AuthService>();
+
+      if (auth.currentUser != null) {
+        // Já logado → abrir Home dentro do RootShell (aba 1 = home_screen.dart)
+        context.read<TabsController>().setIndex(1);
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const RootShell()),
+        );
+
+        // Se preferir abrir DIRETO a HomeScreen, troque por:
+        // Navigator.pushReplacement(
+        //   context,
+        //   MaterialPageRoute(builder: (_) => const HomeScreen()),
+        // );
+      } else {
+        // Não logado → abrir Login
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+        );
+      }
     });
   }
 
@@ -120,7 +152,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
                     ),
                   ),
                   const SizedBox(height: 18),
-                  // TEXTO "Entre Páginas" com fonte marcante
+                  // TEXTO "Entre Páginas"
                   SlideTransition(
                     position: _textSlide,
                     child: FadeTransition(

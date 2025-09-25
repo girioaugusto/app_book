@@ -24,28 +24,54 @@ class ReadingScreen extends StatelessWidget {
       length: 2,
       child: Scaffold(
         appBar: AppBar(
+          centerTitle: true,
+          toolbarHeight: 84, // 👈 dá respiro pro título
           title: Text(
             'Sua leitura 📖',
-            style: GoogleFonts.lobster(fontSize: 26, fontWeight: FontWeight.bold),
+            style: GoogleFonts.lobster(
+              fontSize: 32,              // 👈 maior
+              fontWeight: FontWeight.w700,
+              height: 1.1,
+              color: theme.colorScheme.primary, // destaque no verde do app
+            ),
           ),
           bottom: PreferredSize(
-            preferredSize: const Size.fromHeight(46),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
-              child: TabBar(
-                isScrollable: false,
-                dividerColor: Colors.transparent,
-                indicatorColor: Colors.transparent,
-                labelPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                labelColor: Colors.white,
-                unselectedLabelColor: Colors.white.withOpacity(0.55),
-                labelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
-                unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-                tabs: const [
-                  Tab(child: _TabLabel(icon: Icons.menu_book_rounded, text: 'Ler')),
-                  Tab(child: _TabLabel(icon: Icons.check_circle_rounded, text: 'Lido')),
-                ],
-              ),
+            preferredSize: const Size.fromHeight(56),
+            child: Builder(
+              builder: (context) {
+                final c = Theme.of(context).colorScheme;
+                return Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: c.primary.withOpacity(0.08), // “trilho” suave
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: TabBar(
+                      dividerColor: Colors.transparent,
+                      indicatorSize: TabBarIndicatorSize.tab,
+                      indicator: BoxDecoration(
+                        color: c.primary,                       // ✅ verde do tema
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      labelColor: c.onPrimary,                   // texto branco selecionada
+                      unselectedLabelColor: c.primary,           // texto verde nas outras
+                      labelStyle: const TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 14,
+                      ),
+                      unselectedLabelStyle: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                      tabs: const [
+                        Tab(icon: Icon(Icons.menu_book_rounded), text: 'Ler'),
+                        Tab(icon: Icon(Icons.check_circle_rounded), text: 'Lido'),
+                      ],
+                    ),
+                  ),
+                );
+              },
             ),
           ),
           actions: [
@@ -57,7 +83,7 @@ class ReadingScreen extends StatelessWidget {
                       final picked = (toRead.toList()..shuffle()).first;
                       onOpenDetails(picked);
                     },
-              icon: const Icon(Icons.shuffle, color: Colors.white),
+              icon: const Icon(Icons.shuffle),
             ),
           ],
         ),
@@ -107,25 +133,6 @@ class ReadingScreen extends StatelessWidget {
                 },
               ),
       ),
-    );
-  }
-}
-
-// Label horizontal (ícone + texto) para as abas
-class _TabLabel extends StatelessWidget {
-  final IconData icon;
-  final String text;
-  const _TabLabel({required this.icon, required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 18),
-        const SizedBox(width: 8),
-        Text(text),
-      ],
     );
   }
 }
@@ -329,7 +336,6 @@ class _BookRouletteFullScreenState extends State<BookRouletteFullScreen>
     return WillPopScope(
       onWillPop: () async => !_spinning,
       child: Scaffold(
-        // AppBar no mesmo verde do app
         appBar: AppBar(
           backgroundColor: theme.colorScheme.primary,
           foregroundColor: theme.colorScheme.onPrimary,
@@ -412,7 +418,7 @@ class _BookRouletteFullScreenState extends State<BookRouletteFullScreen>
                                   ),
                                 ),
 
-                                // >>> CHIP ACIMA DA SETA, NÃO GRUDADO, SÓ TÍTULO <<<
+                                // chip acima da seta
                                 if (_wheelBooks.isNotEmpty)
                                   Positioned(
                                     top: -(pointerSize + chipGap + chipLift),
@@ -426,7 +432,7 @@ class _BookRouletteFullScreenState extends State<BookRouletteFullScreen>
                                         Icons.menu_book_rounded,
                                         size: 18,
                                       ),
-                                      maxWidth: 240, // controla largura do chip
+                                      maxWidth: 240,
                                     ),
                                   ),
 
@@ -491,7 +497,7 @@ class _BookRouletteFullScreenState extends State<BookRouletteFullScreen>
 /// Compacta o título: corta subtítulo após ":"/"/-/–/—" e limita caracteres.
 String _compactTitle(String input) {
   var s = input.split(RegExp(r'[:\-–—]')).first.trim();
-  const limit = 24; // ajuste fino aqui
+  const limit = 24;
   if (s.length > limit) {
     s = s.substring(0, limit).trimRight() + '…';
   }
@@ -610,8 +616,8 @@ class _TickerChip extends StatelessWidget {
               constraints: BoxConstraints(maxWidth: maxWidth),
               child: Text(
                 text,
-                maxLines: 1, // <<< apenas 1 linha
-                overflow: TextOverflow.ellipsis, // <<< não mostrar inteiro
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w800,
                 ),

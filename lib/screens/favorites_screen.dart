@@ -6,7 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:livros_app/models/book.dart';
 import 'package:livros_app/providers/library_provider.dart';
 import 'package:livros_app/screens/book_details_screen.dart';
-import 'package:livros_app/screens/home_screen.dart';
+import 'package:livros_app/providers/tabs_controller.dart'; // 👈 para trocar para a aba Buscar
 
 enum _SortMode { recent, title, author }
 
@@ -48,12 +48,16 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        centerTitle: true,
+        toolbarHeight: 84, // deixa o título respirar
         title: Text(
-          '❤️ Favoritos',
+          'Favoritos 💖',
           style: GoogleFonts.lobster(
-              fontSize: 30,
-              fontWeight: FontWeight.bold,
-            ),
+            fontSize: 32,
+            fontWeight: FontWeight.w700,
+            color: cs.primary, // verde do tema
+            height: 1.1,
+          ),
         ),
         actions: [
           if (favorites.isNotEmpty)
@@ -110,12 +114,10 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
       body: Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
         child: favorites.isEmpty
-            ? _EmptyState(onExplore: () {
-                Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (_) => const HomeScreen()),
-                  (route) => false,
-                );
-              })
+            ? _EmptyState(
+                onExplore: () =>
+                    context.read<TabsController>().setIndex(1), // 👉 vai para Buscar
+              )
             : Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -141,7 +143,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                   ),
                   const SizedBox(height: 12),
 
-                  // Grid (sem botões; abre detalhes no tap, remove no long-press)
+                  // Grid (tap abre detalhes, long-press remove com Undo)
                   Expanded(
                     child: GridView.builder(
                       physics: const BouncingScrollPhysics(),
@@ -207,7 +209,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   }
 }
 
-/// Estado vazio fofo :)
+/// Estado vazio
 class _EmptyState extends StatelessWidget {
   final VoidCallback onExplore;
   const _EmptyState({required this.onExplore});
@@ -249,7 +251,7 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-/// Chips para alternar ordenação
+/// Chips para alternar ordenação — estilizadas no verde do tema
 class _SortChips extends StatelessWidget {
   final _SortMode mode;
   final ValueChanged<_SortMode> onChanged;
@@ -257,33 +259,53 @@ class _SortChips extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = Theme.of(context).colorScheme;
+
+    Widget chip({
+      required String label,
+      required bool selected,
+      required VoidCallback onTap,
+    }) {
+      return ChoiceChip(
+        label: Text(label),
+        selected: selected,
+        onSelected: (_) => onTap(),
+        selectedColor: c.primary,                 // ✅ selecionado: verde
+        labelStyle: TextStyle(
+          color: selected ? c.onPrimary : c.primary,
+          fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+        ),
+        backgroundColor: Colors.transparent,
+        side: BorderSide(color: c.primary.withOpacity(0.75)), // borda verde
+        visualDensity: VisualDensity.compact,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      );
+    }
+
     return Wrap(
       spacing: 6,
       children: [
-        FilterChip(
-          label: const Text('Recentes'),
+        chip(
+          label: 'Recentes',
           selected: mode == _SortMode.recent,
-          onSelected: (_) => onChanged(_SortMode.recent),
-          visualDensity: VisualDensity.compact,
+          onTap: () => onChanged(_SortMode.recent),
         ),
-        FilterChip(
-          label: const Text('Título'),
+        chip(
+          label: 'Título',
           selected: mode == _SortMode.title,
-          onSelected: (_) => onChanged(_SortMode.title),
-          visualDensity: VisualDensity.compact,
+          onTap: () => onChanged(_SortMode.title),
         ),
-        FilterChip(
-          label: const Text('Autor'),
+        chip(
+          label: 'Autor',
           selected: mode == _SortMode.author,
-          onSelected: (_) => onChanged(_SortMode.author),
-          visualDensity: VisualDensity.compact,
+          onTap: () => onChanged(_SortMode.author),
         ),
       ],
     );
   }
 }
 
-/// Card de favorito (SEM botões; ações foram movidas para os detalhes)
+/// Card de favorito (SEM botões; ações ficam nos detalhes)
 class _FavCard extends StatelessWidget {
   final Book book;
   final VoidCallback onOpen;
@@ -300,7 +322,8 @@ class _FavCard extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final lib = context.watch<LibraryProvider>();
 
-    final title = (book.title ?? '').trim().isEmpty ? 'Sem título' : book.title!.trim();
+    final title =
+        (book.title ?? '').trim().isEmpty ? 'Sem título' : book.title!.trim();
     final authors = (book.authors?.isNotEmpty ?? false)
         ? book.authors!.join(', ')
         : 'Autor desconhecido';
@@ -308,7 +331,7 @@ class _FavCard extends StatelessWidget {
 
     // estado de leitura (só indicador visual)
     final inToRead = lib.isInToRead(book.id);
-    final inRead   = lib.isInRead(book.id);
+    final inRead = lib.isInRead(book.id);
 
     return InkWell(
       borderRadius: BorderRadius.circular(16),
@@ -382,7 +405,7 @@ class _FavCard extends StatelessWidget {
               ],
             ),
 
-            // Texto (sem botões aqui)
+            // Texto
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
@@ -426,7 +449,8 @@ class _FavCard extends StatelessWidget {
                         if (inRead)
                           Icon(Icons.check_circle, size: 16, color: cs.primary)
                         else if (inToRead)
-                          Icon(Icons.bookmark_added, size: 16, color: cs.onSurfaceVariant),
+                          Icon(Icons.bookmark_added,
+                              size: 16, color: cs.onSurfaceVariant),
                       ],
                     ),
                   ],
