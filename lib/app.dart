@@ -4,7 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'providers/library_provider.dart';
 import 'providers/tabs_controller.dart';
 import 'splash_screen.dart'; // <- importe o splash
-import 'screens/cafes_screen.dart';
+
 
 
 class App extends StatelessWidget {

@@ -14,6 +14,9 @@ class LibraryProvider extends ChangeNotifier {
   final List<Book> _toRead = [];
   final List<Book> _read = [];
 
+  // Cache de recomendações por autor (chave: autor normalizado)
+  final Map<String, List<Book>> _authorCache = {};
+
   bool _isLoading = false;
   String _lastQuery = '';
   String? _error;
@@ -83,6 +86,10 @@ class LibraryProvider extends ChangeNotifier {
     _isLoading = true;
     _lastQuery = query;
     _error = null;
+
+    // A busca muda o universo local; limpe a cache de autor
+    _authorCache.clear();
+
     notifyListeners();
 
     try {
@@ -119,6 +126,10 @@ class LibraryProvider extends ChangeNotifier {
       _favorites.add(book);
     }
     await _saveFavorites(prefs);
+
+    // Favoritar pode influenciar recomendações locais; limpe a cache
+    _authorCache.clear();
+
     notifyListeners();
   }
 
@@ -132,6 +143,10 @@ class LibraryProvider extends ChangeNotifier {
     if (!isInToRead(book.id) && !isInRead(book.id)) {
       _toRead.add(book);
       await _saveReadingLists(prefs);
+
+      // Pode afetar recomendações locais
+      _authorCache.clear();
+
       notifyListeners();
     }
   }
@@ -142,6 +157,8 @@ class LibraryProvider extends ChangeNotifier {
     _toRead.removeWhere((b) => b.id == book.id);
     if (!isInRead(book.id)) _read.add(book);
     await _saveReadingLists(prefs);
+
+    _authorCache.clear();
     notifyListeners();
   }
 
@@ -151,6 +168,8 @@ class LibraryProvider extends ChangeNotifier {
     _read.removeWhere((b) => b.id == book.id);
     if (!isInToRead(book.id)) _toRead.add(book);
     await _saveReadingLists(prefs);
+
+    _authorCache.clear();
     notifyListeners();
   }
 
@@ -160,26 +179,78 @@ class LibraryProvider extends ChangeNotifier {
     _toRead.removeWhere((b) => b.id == id);
     _read.removeWhere((b) => b.id == id);
     await _saveReadingLists(prefs);
+
+    _authorCache.clear();
     notifyListeners();
   }
 
   // ---------------------- Recomendação por autor ----------------------
-  Future<List<Book>> fetchByAuthor(String author, {int max = 12}) async {
-    final a = author.trim();
-    if (a.isEmpty || a == 'Autor desconhecido') return [];
 
-    try {
-      final list = await BookApi.search('inauthor:"$a"');
-      final filtered = list.where((b) => (b.title ?? '').trim().isNotEmpty).toList();
-      return (max > 0) ? filtered.take(max).toList() : filtered;
-    } catch (e) {
-      if (kDebugMode) print('fetchByAuthor error: $e');
-      final lower = a.toLowerCase();
-      final candidates = _results.where((b) {
-        final authors = b.authors ?? const [];
-        return authors.any((x) => x.toLowerCase() == lower);
-      }).toList();
-      return (max > 0) ? candidates.take(max).toList() : candidates;
+  /// Retorna recomendações do mesmo autor, combinando:
+  /// 1) Itens já conhecidos localmente (results/favorites/toRead/read)
+  /// 2) Busca remota na API (BookApi.search) com `inauthor:"$author"`
+  ///
+  /// - Compara autores com normalização (trim/lowercase).
+  /// - Remove o livro atual na UI (lá no widget) usando `currentId`.
+  /// - Usa cache para evitar repetir chamadas enquanto a store não muda.
+  Future<List<Book>> fetchByAuthor(String author, {int limit = 10}) async {
+    final key = author.trim().toLowerCase();
+    if (key.isEmpty) return const <Book>[];
+
+    // Cache
+    final cached = _authorCache[key];
+    if (cached != null) {
+      return limit > 0 && cached.length > limit ? cached.take(limit).toList() : cached;
     }
+
+    // 1) Busca local (já carregados)
+    final localPool = <Book>{
+      ..._results,
+      ..._favorites,
+      ..._toRead,
+      ..._read,
+    };
+
+    bool bookHasAuthor(Book b) {
+      final a = (b.authors ?? const <String>[]);
+      return a.any((x) => x.trim().toLowerCase() == key);
+    }
+
+    final localMatches = localPool.where(bookHasAuthor).toList();
+
+    // 2) Busca remota por autor (se disponível)
+    final merged = <Book>[...localMatches];
+    try {
+      final remote = await BookApi.search('inauthor:"$author"');
+      for (final b in remote) {
+        if (!merged.any((x) => x.id == b.id)) {
+          merged.add(b);
+        }
+      }
+    } catch (e, st) {
+      if (kDebugMode) {
+        print('fetchByAuthor error: $e');
+        print(st);
+      }
+      // Mesmo que a remota falhe, devolvemos o que achamos localmente
+    }
+
+    // Opcional: ordena priorizando itens locais primeiro (podem ser mais relevantes)
+    // Depois por título como fallback estável
+    merged.sort((a, b) {
+      final aLocal = localPool.any((x) => x.id == a.id) ? 0 : 1;
+      final bLocal = localPool.any((x) => x.id == b.id) ? 0 : 1;
+      final cmpLocal = aLocal.compareTo(bLocal);
+      if (cmpLocal != 0) return cmpLocal;
+      final ta = (a.title ?? '').toLowerCase();
+      final tb = (b.title ?? '').toLowerCase();
+      return ta.compareTo(tb);
+    });
+
+    final result = (limit > 0 && merged.length > limit) ? merged.take(limit).toList() : merged;
+
+    // Preenche cache e retorna
+    _authorCache[key] = result;
+    return result;
   }
 }

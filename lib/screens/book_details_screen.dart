@@ -322,6 +322,16 @@ class BookDetailsScreen extends StatelessWidget {
                   const SizedBox(height: 8),
                   _MetaList(book: book),
 
+                  // ======= ADICIONADO: Recomendações por autor =======
+                  if ((book.authors ?? const <String>[]).isNotEmpty) ...[
+                    const SizedBox(height: 24),
+                    _AuthorRecommendations(
+                      author: (book.authors ?? const <String>[]).first,
+                      currentId: book.id,
+                    ),
+                  ],
+                  // ================================================
+
                   const SizedBox(height: 64), // espaço p/ não ficar sob a bottom bar
                 ],
               ),
