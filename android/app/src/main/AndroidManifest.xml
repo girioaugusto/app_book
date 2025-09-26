@@ -1,31 +1,16 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Permissões de localização -->
+    <!-- Permissões que você já usa -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
-
-    <!-- Foreground service (Android 9+) e tipo de serviço de localização (Android 12+) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
-
-    <!-- Só adicione se realmente precisar de localização em segundo plano contínua
-         (peça essa permissão separadamente em runtime e explique ao usuário) -->
-    <!-- <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION"/> -->
-
-    <!-- Internet (seu app consome APIs/imagens) -->
     <uses-permission android:name="android.permission.INTERNET" />
 
     <application
         android:name="${applicationName}"
         android:label="bookapp"
         android:icon="@mipmap/ic_launcher">
-
-        <!-- Opcional: Maps/Places (ative apenas se for usar e tiver a API key) -->
-        <!--
-        <meta-data
-            android:name="com.google.android.geo.API_KEY"
-            android:value="@string/google_maps_key"/>
-        -->
 
         <activity
             android:name=".MainActivity"
@@ -41,25 +26,31 @@
                 android:name="io.flutter.embedding.android.NormalTheme"
                 android:resource="@style/NormalTheme" />
 
+            <!-- Launcher -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+
+            <!-- 🔗 Deep link do Supabase -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <!-- DEVE casar com redirect_to=livrosapp://auth-callback -->
+                <data android:scheme="livrosapp" android:host="auth-callback" />
+            </intent-filter>
+
         </activity>
 
-        <!-- Serviço do Geolocator para updates em foreground (Android 12+ exige foregroundServiceType) -->
         <service
             android:name="com.baseflow.geolocator.GeolocatorForegroundService"
             android:exported="false"
             android:foregroundServiceType="location" />
 
-        <!-- Não remover: usado pelo Flutter -->
-        <meta-data
-            android:name="flutterEmbedding"
-            android:value="2" />
+        <meta-data android:name="flutterEmbedding" android:value="2" />
     </application>
 
-    <!-- Queries necessárias para Process Text API do Flutter -->
     <queries>
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>

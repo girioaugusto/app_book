@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
-import '../root_shell.dart';
-import '../providers/tabs_controller.dart';
-import '../services/auth_service.dart';
+import 'package:livros_app/services/auth_service.dart';
+import 'package:livros_app/providers/tabs_controller.dart';
+import 'package:livros_app/root_shell.dart';
 import 'register_screen.dart';
+import 'forgot_password_screen.dart'; // tela de redefinição (email + senha antiga + nova)
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -15,30 +17,45 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _userCtrl = TextEditingController();
+  final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
-  bool _obscure = true;
   bool _busy = false;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      precacheImage(const AssetImage('lib/assets/logo.png'), context);
+    });
+  }
+
+  @override
   void dispose() {
-    _userCtrl.dispose();
+    _emailCtrl.dispose();
     _passCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _doLogin() async {
+  Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _busy = true);
-    try {
-      final auth = context.read<AuthService>();
-      await auth.login(_userCtrl.text.trim(), _passCtrl.text);
 
-      // Vai para Home (aba 1 = HomeScreen) dentro do RootShell
-      context.read<TabsController>().setIndex(0);
+    try {
+      await context.read<AuthService>().signIn(
+            email: _emailCtrl.text.trim(),
+            password: _passCtrl.text,
+          );
+
       if (!mounted) return;
-      Navigator.of(context).pushReplacement(
+
+      // Selecione a aba inicial do RootShell (ajuste o índice se sua home for outra aba)
+      context.read<TabsController>().setIndex(0);
+
+      // Navega para o shell com BottomNavigationBar
+      Navigator.pushAndRemoveUntil(
+        context,
         MaterialPageRoute(builder: (_) => const RootShell()),
+        (_) => false,
       );
     } catch (e) {
       if (!mounted) return;
@@ -50,119 +67,118 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  void _showForgotPasswordDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Esqueci minha senha'),
-        content: const Text(
-          'Para redefinição de senha de forma segura é necessário um backend '
-          '(e-mail/SMS/verificação). Neste app local, use "Alterar senha" após '
-          'fazer login ou implemente verificação externa.',
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Ok')),
-        ],
-      ),
+  void _goToForgotPassword() {
+    if (_busy) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const ForgotPasswordScreen()),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    final size = MediaQuery.of(context).size;
 
     return Scaffold(
       body: SafeArea(
-        minimum: const EdgeInsets.all(16),
         child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Form(
-              key: _formKey,
-              child: ListView(
-                shrinkWrap: true,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  const SizedBox(height: 24),
-
-                  // ====== LOGO DO APP (sem fallback de cadeado) ======
-                  Center(
-                    child: SizedBox(
-                      height: 200, // ⬅️ logo maior
-                      child: Image.asset(
-                        'lib/assets/logo.png', // mantém seu caminho
-                        fit: BoxFit.contain,
-                        semanticLabel: 'Logo do aplicativo',
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // ====== FRASE INSPIRADORA ======
-                  Text(
-                    'Entre para explorar novos mundos 📚☕',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w600,
-                          color: cs.primary,
-                        ),
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // Usuário
-                  TextFormField(
-                    controller: _userCtrl,
-                    textInputAction: TextInputAction.next,
-                    decoration: const InputDecoration(
-                      labelText: 'Usuário',
-                      prefixIcon: Icon(Icons.person_outline),
-                    ),
-                    validator: (v) => (v == null || v.trim().isEmpty)
-                        ? 'Informe o usuário'
-                        : null,
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Senha
-                  TextFormField(
-                    controller: _passCtrl,
-                    obscureText: _obscure,
-                    onFieldSubmitted: (_) => _doLogin(),
-                    decoration: InputDecoration(
-                      labelText: 'Senha',
-                      prefixIcon: const Icon(Icons.lock_outline),
-                      suffixIcon: IconButton(
-                        tooltip: _obscure ? 'Mostrar senha' : 'Ocultar senha',
-                        icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off),
-                        onPressed: () => setState(() => _obscure = !_obscure),
-                      ),
-                    ),
-                    validator: (v) => (v == null || v.isEmpty)
-                        ? 'Informe a senha'
-                        : null,
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // Botão entrar
-                  SizedBox(
-                    height: 48,
-                    child: FilledButton.icon(
-                      onPressed: _busy ? null : _doLogin,
-                      icon: const Icon(Icons.login),
-                      label: Text(_busy ? 'Entrando…' : 'Entrar'),
-                    ),
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  // Ações secundárias
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  // LOGO + título
+                  Column(
                     children: [
-                      TextButton.icon(
+                      Image.asset(
+                        'lib/assets/logo.png',
+                        width: 140,
+                        height: 140,
+                        filterQuality: FilterQuality.high,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Entre Páginas',
+                        style: GoogleFonts.cinzelDecorative(
+                          textStyle: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.8,
+                              ),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Bem-vindo de volta!',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                            ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // CARD do formulário
+                  Card(
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Form(
+                        key: _formKey,
+                        child: Column(
+                          children: [
+                            TextFormField(
+                              controller: _emailCtrl,
+                              decoration: const InputDecoration(labelText: 'E-mail'),
+                              keyboardType: TextInputType.emailAddress,
+                              textInputAction: TextInputAction.next,
+                              validator: (v) {
+                                final s = v?.trim() ?? '';
+                                if (!s.contains('@') || !s.contains('.')) return 'E-mail inválido';
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 12),
+                            TextFormField(
+                              controller: _passCtrl,
+                              decoration: const InputDecoration(labelText: 'Senha'),
+                              obscureText: true,
+                              validator: (v) => (v ?? '').isEmpty ? 'Informe sua senha' : null,
+                            ),
+                            const SizedBox(height: 20),
+                            SizedBox(
+                              width: double.infinity,
+                              child: FilledButton(
+                                onPressed: _busy ? null : _login,
+                                child: _busy
+                                    ? const SizedBox(
+                                        height: 22,
+                                        width: 22,
+                                        child: CircularProgressIndicator(strokeWidth: 2),
+                                      )
+                                    : const Text('Entrar'),
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: _goToForgotPassword,
+                              child: const Text('Esqueci minha senha'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // Link para registro
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text('Novo por aqui?'),
+                      TextButton(
                         onPressed: _busy
                             ? null
                             : () {
@@ -170,15 +186,12 @@ class _LoginScreenState extends State<LoginScreen> {
                                   MaterialPageRoute(builder: (_) => const RegisterScreen()),
                                 );
                               },
-                        icon: const Icon(Icons.person_add_alt_1_outlined),
-                        label: const Text('Criar conta'),
-                      ),
-                      TextButton(
-                        onPressed: _busy ? null : _showForgotPasswordDialog,
-                        child: const Text('Esqueci minha senha'),
+                        child: const Text('Crie uma conta'),
                       ),
                     ],
                   ),
+
+                  SizedBox(height: size.height * 0.05),
                 ],
               ),
             ),

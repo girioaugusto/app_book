@@ -11,16 +11,17 @@ class AppDrawer extends StatelessWidget {
 
   Future<void> _logout(BuildContext context) async {
     final ok = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Sair da conta?'),
-        content: const Text('Você precisará fazer login novamente para usar o app.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Sair')),
-        ],
-      ),
-    ) ?? false;
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('Sair da conta?'),
+            content: const Text('Você precisará fazer login novamente para usar o app.'),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+              FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Sair')),
+            ],
+          ),
+        ) ??
+        false;
 
     if (!ok) return;
 
@@ -39,7 +40,18 @@ class AppDrawer extends StatelessWidget {
     final themeCtrl = context.watch<ThemeController>();
     final isDark = themeCtrl.mode == ThemeMode.dark;
 
-    final username = context.watch<AuthService>().currentUser?.username;
+    final auth = context.watch<AuthService>();
+    final user = auth.user;
+
+    // Tenta pegar o username do metadata; se não houver, usa prefixo do e-mail.
+    String displayName = 'Convidado';
+    if (user != null) {
+      final meta = user.userMetadata ?? {};
+      final metaUsername = meta['username'] as String?;
+      displayName = metaUsername?.trim().isNotEmpty == true
+          ? metaUsername!.trim()
+          : (user.email != null ? user.email!.split('@').first : 'Usuário');
+    }
 
     return Drawer(
       child: SafeArea(
@@ -47,8 +59,8 @@ class AppDrawer extends StatelessWidget {
           children: [
             UserAccountsDrawerHeader(
               currentAccountPicture: const CircleAvatar(child: Icon(Icons.person)),
-              accountName: Text(username ?? 'Convidado'),
-              accountEmail: const Text(''),
+              accountName: Text(displayName),
+              accountEmail: Text(user?.email ?? ''),
             ),
             SwitchListTile.adaptive(
               secondary: const Icon(Icons.dark_mode_outlined),

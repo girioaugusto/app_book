@@ -1,14 +1,12 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'services/auth_service.dart';
-import 'providers/tabs_controller.dart';
-
-import 'root_shell.dart';
 import 'screens/login_screen.dart';
-// Se quiser abrir direto a HomeScreen (sem RootShell), descomente a linha abaixo
-// import 'home_screen.dart';
+import 'screens/new_password_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -18,104 +16,66 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMixin {
-  late final AnimationController _introCtrl;   // entrada do logo
-  late final AnimationController _floatCtrl;   // flutuação
+  late final AnimationController _introCtrl;
+  late final AnimationController _floatCtrl;
   late final Animation<double> _fade;
   late final Animation<double> _scale;
   late final Animation<double> _rotate;
   late final Animation<double> _float;
-
-  // Texto
   late final Animation<double> _textFade;
   late final Animation<Offset> _textSlide;
+
+  StreamSubscription<AuthChangeEvent>? _authSub;
 
   @override
   void initState() {
     super.initState();
 
-    // Precarrega a imagem pra evitar hitch
     WidgetsBinding.instance.addPostFrameCallback((_) {
       precacheImage(const AssetImage('lib/assets/logo.png'), context);
     });
 
-    // Entrada do logo
-    _introCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1200),
-    );
-
+    _introCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200));
     _fade = CurvedAnimation(parent: _introCtrl, curve: Curves.easeIn);
-
     _scale = TweenSequence<double>([
-      TweenSequenceItem(
-        tween: Tween(begin: 0.6, end: 1.15).chain(CurveTween(curve: Curves.easeOutBack)),
-        weight: 70,
-      ),
-      TweenSequenceItem(
-        tween: Tween(begin: 1.15, end: 1.0).chain(CurveTween(curve: Curves.easeIn)),
-        weight: 30,
-      ),
+      TweenSequenceItem(tween: Tween(begin: 0.6, end: 1.15).chain(CurveTween(curve: Curves.easeOutBack)), weight: 70),
+      TweenSequenceItem(tween: Tween(begin: 1.15, end: 1.0).chain(CurveTween(curve: Curves.easeIn)), weight: 30),
     ]).animate(_introCtrl);
-
-    _rotate = Tween<double>(begin: -0.06, end: 0.0)
-        .chain(CurveTween(curve: Curves.easeOutCubic))
-        .animate(_introCtrl);
-
+    _rotate = Tween<double>(begin: -0.06, end: 0.0).chain(CurveTween(curve: Curves.easeOutCubic)).animate(_introCtrl);
     _introCtrl.forward();
 
-    // Flutuação contínua
-    _floatCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1400),
-    )..repeat(reverse: true);
+    _floatCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1400))..repeat(reverse: true);
+    _float = Tween<double>(begin: -10, end: 10).chain(CurveTween(curve: Curves.easeInOut)).animate(_floatCtrl);
 
-    _float = Tween<double>(begin: -10.0, end: 10.0)
-        .chain(CurveTween(curve: Curves.easeInOut))
-        .animate(_floatCtrl);
+    _textFade = CurvedAnimation(parent: _introCtrl, curve: const Interval(0.45, 1, curve: Curves.easeIn));
+    _textSlide = Tween<Offset>(begin: const Offset(0, .15), end: Offset.zero)
+        .animate(CurvedAnimation(parent: _introCtrl, curve: const Interval(0.45, 1, curve: Curves.easeOut)));
 
-    // Texto: entra depois do logo (usar Interval)
-    _textFade = CurvedAnimation(
-      parent: _introCtrl,
-      curve: const Interval(0.45, 1.0, curve: Curves.easeIn),
-    );
-    _textSlide = Tween<Offset>(
-      begin: const Offset(0, 0.15),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _introCtrl,
-      curve: const Interval(0.45, 1.0, curve: Curves.easeOut),
-    ));
+    // 🔔 OUVE deep links do Supabase (inclui passwordRecovery)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final auth = context.read<AuthService>();
+      _authSub = auth.authEvents().listen((event) {
+        // print('[AuthEvent] $event');
+        if (!mounted) return;
 
-    // ✅ Decidir destino após ~2.6s
+        if (event == AuthChangeEvent.passwordRecovery) {
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const NewPasswordScreen()),
+          );
+        }
+      });
+    });
+
+    // Após ~2.6s vai pro Login
     Future.delayed(const Duration(milliseconds: 2600), () {
       if (!mounted) return;
-      final auth = context.read<AuthService>();
-
-      if (auth.currentUser != null) {
-        // Já logado → abrir Home dentro do RootShell (aba 1 = home_screen.dart)
-        context.read<TabsController>().setIndex(1);
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const RootShell()),
-        );
-
-        // Se preferir abrir DIRETO a HomeScreen, troque por:
-        // Navigator.pushReplacement(
-        //   context,
-        //   MaterialPageRoute(builder: (_) => const HomeScreen()),
-        // );
-      } else {
-        // Não logado → abrir Login
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const LoginScreen()),
-        );
-      }
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
     });
   }
 
   @override
   void dispose() {
+    _authSub?.cancel();
     _introCtrl.dispose();
     _floatCtrl.dispose();
     super.dispose();
@@ -124,7 +84,6 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
   @override
   Widget build(BuildContext context) {
     const appGreen = Color(0xFF2E7D32);
-
     return Scaffold(
       backgroundColor: appGreen,
       body: Center(
@@ -136,23 +95,17 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // LOGO
                   FadeTransition(
                     opacity: _fade,
                     child: Transform.rotate(
                       angle: _rotate.value,
                       child: Transform.scale(
                         scale: _scale.value,
-                        child: Image.asset(
-                          'lib/assets/logo.png',
-                          width: 320,
-                          filterQuality: FilterQuality.high,
-                        ),
+                        child: Image.asset('lib/assets/logo.png', width: 320, filterQuality: FilterQuality.high),
                       ),
                     ),
                   ),
                   const SizedBox(height: 18),
-                  // TEXTO "Entre Páginas"
                   SlideTransition(
                     position: _textSlide,
                     child: FadeTransition(
@@ -166,9 +119,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
                             fontWeight: FontWeight.w700,
                             color: Colors.white,
                             letterSpacing: 1.2,
-                            shadows: [
-                              Shadow(blurRadius: 8, color: Colors.black54, offset: Offset(0, 2)),
-                            ],
+                            shadows: [Shadow(blurRadius: 8, color: Colors.black54, offset: Offset(0, 2))],
                           ),
                         ),
                       ),
