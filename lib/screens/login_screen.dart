@@ -1,12 +1,13 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:livros_app/services/auth_service.dart';
-import 'package:livros_app/providers/tabs_controller.dart';
-import 'package:livros_app/root_shell.dart';
+import 'verify_email_waiting_screen.dart';
+import 'forgot_password_screen.dart';
 import 'register_screen.dart';
-import 'forgot_password_screen.dart'; // tela de redefinição (email + senha antiga + nova)
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -15,189 +16,410 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
-  final _emailCtrl = TextEditingController();
-  final _passCtrl = TextEditingController();
-  bool _busy = false;
+  final emailC = TextEditingController();
+  final passC  = TextEditingController();
+
+  bool loading = false;
+  bool obscure = true;
+  bool remember = false;
+
+  late final AnimationController _fadeCtrl =
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 420))
+        ..forward();
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      precacheImage(const AssetImage('lib/assets/logo.png'), context);
-    });
+    _loadRemembered();
   }
 
   @override
   void dispose() {
-    _emailCtrl.dispose();
-    _passCtrl.dispose();
+    _fadeCtrl.dispose();
+    emailC.dispose();
+    passC.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadRemembered() async {
+    final sp = await SharedPreferences.getInstance();
+    remember = sp.getBool('remember_email') ?? false;
+    if (remember) emailC.text = sp.getString('remembered_email') ?? '';
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _persistRemember() async {
+    final sp = await SharedPreferences.getInstance();
+    if (remember) {
+      await sp.setBool('remember_email', true);
+      await sp.setString('remembered_email', emailC.text.trim());
+    } else {
+      await sp.remove('remember_email');
+      await sp.remove('remembered_email');
+    }
   }
 
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
-    setState(() => _busy = true);
-
+    final auth = context.read<AuthService>();
+    setState(() => loading = true);
     try {
-      await context.read<AuthService>().signIn(
-            email: _emailCtrl.text.trim(),
-            password: _passCtrl.text,
-          );
-
-      if (!mounted) return;
-
-      // Selecione a aba inicial do RootShell (ajuste o índice se sua home for outra aba)
-      context.read<TabsController>().setIndex(0);
-
-      // Navega para o shell com BottomNavigationBar
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const RootShell()),
-        (_) => false,
+      await _persistRemember();
+      await auth.signInWithPassword(
+        email: emailC.text.trim(),
+        password: passC.text,
       );
+      // Navegação será resolvida pelos eventos no AuthService.
     } catch (e) {
+      HapticFeedback.mediumImpact();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+        SnackBar(content: Text('Falha no login: $e')),
       );
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) setState(() => loading = false);
     }
   }
 
-  void _goToForgotPassword() {
-    if (_busy) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const ForgotPasswordScreen()),
-    );
+  Future<void> _loginWithGoogle() async {
+    setState(() => loading = true);
+    try {
+      await context.read<AuthService>().signInWithGoogle();
+    } catch (e) {
+      HapticFeedback.mediumImpact();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Falha no Google: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
+    final theme = Theme.of(context);
+    final cs    = theme.colorScheme;
 
     return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // LOGO + título
-                  Column(
-                    children: [
-                      Image.asset(
-                        'lib/assets/logo.png',
-                        width: 140,
-                        height: 140,
-                        filterQuality: FilterQuality.high,
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Entre Páginas',
-                        style: GoogleFonts.cinzelDecorative(
-                          textStyle: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 0.8,
-                              ),
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Bem-vindo de volta!',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-                            ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // CARD do formulário
-                  Card(
-                    elevation: 2,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Form(
-                        key: _formKey,
-                        child: Column(
-                          children: [
-                            TextFormField(
-                              controller: _emailCtrl,
-                              decoration: const InputDecoration(labelText: 'E-mail'),
-                              keyboardType: TextInputType.emailAddress,
-                              textInputAction: TextInputAction.next,
-                              validator: (v) {
-                                final s = v?.trim() ?? '';
-                                if (!s.contains('@') || !s.contains('.')) return 'E-mail inválido';
-                                return null;
-                              },
-                            ),
-                            const SizedBox(height: 12),
-                            TextFormField(
-                              controller: _passCtrl,
-                              decoration: const InputDecoration(labelText: 'Senha'),
-                              obscureText: true,
-                              validator: (v) => (v ?? '').isEmpty ? 'Informe sua senha' : null,
-                            ),
-                            const SizedBox(height: 20),
-                            SizedBox(
-                              width: double.infinity,
-                              child: FilledButton(
-                                onPressed: _busy ? null : _login,
-                                child: _busy
-                                    ? const SizedBox(
-                                        height: 22,
-                                        width: 22,
-                                        child: CircularProgressIndicator(strokeWidth: 2),
-                                      )
-                                    : const Text('Entrar'),
-                              ),
-                            ),
-                            TextButton(
-                              onPressed: _goToForgotPassword,
-                              child: const Text('Esqueci minha senha'),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  // Link para registro
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Text('Novo por aqui?'),
-                      TextButton(
-                        onPressed: _busy
-                            ? null
-                            : () {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(builder: (_) => const RegisterScreen()),
-                                );
-                              },
-                        child: const Text('Crie uma conta'),
-                      ),
-                    ],
-                  ),
-
-                  SizedBox(height: size.height * 0.05),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Fundo com gradiente sutil
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  cs.surface,
+                  cs.surfaceVariant.withOpacity(0.55),
+                  cs.surface,
                 ],
               ),
             ),
           ),
+
+          // Orbs de brilho de fundo (peso visual sem poluir)
+          Positioned(
+            top: -90,
+            right: -40,
+            child: _GlowOrb(color: cs.primary.withOpacity(0.25), size: 220),
+          ),
+          Positioned(
+            bottom: -110,
+            left: -40,
+            child: _GlowOrb(color: cs.tertiary.withOpacity(0.20), size: 260),
+          ),
+
+          // Conteúdo
+          Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: FadeTransition(
+                opacity: _fadeCtrl,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 460),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(24),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16), // efeito vidro
+                      child: Card(
+                        elevation: 6,
+                        color: cs.surface.withOpacity(0.78),
+                        shadowColor: cs.primary.withOpacity(0.15),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(24),
+                          side: BorderSide(color: cs.outlineVariant.withOpacity(0.35)),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 26),
+                          child: AutofillGroup(
+                            child: Form(
+                              key: _formKey,
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  // LOGO + título
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 4, bottom: 14),
+                                    child: Column(
+                                      children: [
+                                        Image.asset(
+                                          'lib/assets/logo.png', // ajuste se necessário
+                                          height: 120,
+                                          fit: BoxFit.contain,
+                                        ),
+                                        const SizedBox(height: 10),
+                                        Text(
+                                          'Bem-vindo ao Entre Páginas',
+                                          textAlign: TextAlign.center,
+                                          style: theme.textTheme.headlineSmall?.copyWith(
+                                            color: cs.primary,
+                                            fontWeight: FontWeight.w800,
+                                            letterSpacing: 0.2,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          'Acesse sua estante digital',
+                                          style: theme.textTheme.bodyMedium?.copyWith(
+                                            color: cs.onSurfaceVariant,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+
+                                  const SizedBox(height: 6),
+
+                                  // E-mail
+                                  _FieldWrapper(
+                                    child: TextFormField(
+                                      controller: emailC,
+                                      textInputAction: TextInputAction.next,
+                                      autofillHints: const [AutofillHints.username, AutofillHints.email],
+                                      keyboardType: TextInputType.emailAddress,
+                                      decoration: const InputDecoration(
+                                        labelText: 'E-mail',
+                                        hintText: 'voce@exemplo.com',
+                                        prefixIcon: Icon(Icons.alternate_email_rounded),
+                                      ),
+                                      validator: (v) {
+                                        final t = (v ?? '').trim();
+                                        if (t.isEmpty) return 'Informe seu e-mail';
+                                        if (!t.contains('@')) return 'E-mail inválido';
+                                        return null;
+                                      },
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+
+                                  // Senha
+                                  _FieldWrapper(
+                                    child: TextFormField(
+                                      controller: passC,
+                                      textInputAction: TextInputAction.done,
+                                      autofillHints: const [AutofillHints.password],
+                                      obscureText: obscure,
+                                      onFieldSubmitted: (_) => _login(),
+                                      decoration: InputDecoration(
+                                        labelText: 'Senha',
+                                        prefixIcon: const Icon(Icons.lock_outline_rounded),
+                                        suffixIcon: IconButton(
+                                          onPressed: () => setState(() => obscure = !obscure),
+                                          tooltip: obscure ? 'Mostrar senha' : 'Ocultar senha',
+                                          icon: AnimatedSwitcher(
+                                            duration: const Duration(milliseconds: 160),
+                                            transitionBuilder: (c, a) => ScaleTransition(scale: a, child: c),
+                                            child: Icon(
+                                              key: ValueKey(obscure),
+                                              obscure ? Icons.visibility_off_rounded : Icons.visibility_rounded,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      validator: (v) => (v ?? '').isEmpty ? 'Informe sua senha' : null,
+                                    ),
+                                  ),
+
+                                  // Lembrar e-mail
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 6, bottom: 6),
+                                    child: SwitchListTile.adaptive(
+                                      contentPadding: EdgeInsets.zero,
+                                      dense: true,
+                                      title: const Text('Lembrar e-mail neste dispositivo'),
+                                      value: remember,
+                                      onChanged: (v) => setState(() => remember = v),
+                                    ),
+                                  ),
+
+                                  const SizedBox(height: 8),
+
+                                  // Entrar
+                                  SizedBox(
+                                    height: 50,
+                                    child: FilledButton.tonal(
+                                      onPressed: loading ? null : _login,
+                                      style: ButtonStyle(
+                                        shape: WidgetStatePropertyAll(
+                                          RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                        ),
+                                      ),
+                                      child: AnimatedSwitcher(
+                                        duration: const Duration(milliseconds: 220),
+                                        child: loading
+                                            ? const SizedBox(
+                                                key: ValueKey('p'),
+                                                height: 22, width: 22,
+                                                child: CircularProgressIndicator(strokeWidth: 2),
+                                              )
+                                            : const Text('Entrar', key: ValueKey('t')),
+                                      ),
+                                    ),
+                                  ),
+
+                                  const SizedBox(height: 14),
+                                  _OrDivider(color: cs),
+                                  const SizedBox(height: 14),
+
+                                  // Entrar com Google (sem ícone, visual limpo)
+                                  SizedBox(
+                                    height: 50,
+                                    child: OutlinedButton(
+                                      onPressed: loading ? null : _loginWithGoogle,
+                                      style: ButtonStyle(
+                                        side: WidgetStatePropertyAll(
+                                          BorderSide(color: cs.outlineVariant),
+                                        ),
+                                        shape: WidgetStatePropertyAll(
+                                          RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                        ),
+                                        overlayColor: WidgetStatePropertyAll(
+                                          cs.primary.withOpacity(0.06),
+                                        ),
+                                      ),
+                                      child: const Text(
+                                        'Entrar com Google',
+                                        style: TextStyle(fontWeight: FontWeight.w600),
+                                      ),
+                                    ),
+                                  ),
+
+                                  const SizedBox(height: 10),
+                                  const Divider(height: 26),
+
+                                  // Ações secundárias
+                                  Wrap(
+                                    alignment: WrapAlignment.center,
+                                    spacing: 8,
+                                    runSpacing: 4,
+                                    children: [
+                                      TextButton.icon(
+                                        onPressed: loading
+                                            ? null
+                                            : () => Navigator.push(
+                                                  context,
+                                                  MaterialPageRoute(builder: (_) => const RegisterScreen()),
+                                                ),
+                                        icon: const Icon(Icons.person_add_alt_1_rounded),
+                                        label: const Text('Criar conta'),
+                                      ),
+                                      TextButton.icon(
+                                        onPressed: loading
+                                            ? null
+                                            : () => Navigator.push(
+                                                  context,
+                                                  MaterialPageRoute(builder: (_) => const ForgotPasswordScreen()),
+                                                ),
+                                        icon: const Icon(Icons.help_outline_rounded),
+                                        label: const Text('Esqueci minha senha'),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Orb de brilho suave para “peso” de fundo
+class _GlowOrb extends StatelessWidget {
+  final Color color;
+  final double size;
+  const _GlowOrb({required this.color, required this.size});
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(color: color, blurRadius: size * 0.6, spreadRadius: size * 0.25),
+          ],
         ),
       ),
+    );
+  }
+}
+
+/// Wrapper que dá um look consistente aos TextFields sem mexer no Theme global
+class _FieldWrapper extends StatelessWidget {
+  final Widget child;
+  const _FieldWrapper({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: cs.surfaceVariant.withOpacity(0.18),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: cs.outlineVariant.withOpacity(0.35)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        child: child,
+      ),
+    );
+  }
+}
+
+/// Divider estilizado com “ou”
+class _OrDivider extends StatelessWidget {
+  final ColorScheme color;
+  const _OrDivider({required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(child: Divider(color: color.outlineVariant)),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          child: Text('ou', style: TextStyle(color: color.outline, fontWeight: FontWeight.w600)),
+        ),
+        Expanded(child: Divider(color: color.outlineVariant)),
+      ],
     );
   }
 }

@@ -1,139 +1,199 @@
 import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:livros_app/services/auth_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:livros_app/services/auth_service.dart';
 import 'login_screen.dart';
 
 class VerifyEmailWaitingScreen extends StatefulWidget {
-  final String email;
-
-  const VerifyEmailWaitingScreen({super.key, required this.email});
+  const VerifyEmailWaitingScreen({super.key});
 
   @override
-  State<VerifyEmailWaitingScreen> createState() => _VerifyEmailWaitingScreenState();
+  State<VerifyEmailWaitingScreen> createState() =>
+      _VerifyEmailWaitingScreenState();
 }
 
-class _VerifyEmailWaitingScreenState extends State<VerifyEmailWaitingScreen> {
-  StreamSubscription<AuthChangeEvent>? _sub;
-  bool _done = false;
-  String? _error;
+class _VerifyEmailWaitingScreenState extends State<VerifyEmailWaitingScreen>
+    with TickerProviderStateMixin {
+  StreamSubscription? _sub;
+  bool _mounted = true;
+  bool _checking = false;
+
+  late final AnimationController _pulseCtrl = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1200),
+    lowerBound: 0.95,
+    upperBound: 1.05,
+  )..repeat(reverse: true);
 
   @override
   void initState() {
     super.initState();
+    final auth = context.read<AuthService>();
 
-    // Ouve eventos do Supabase: ao clicar no link de signup, normalmente vem signedIn
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final auth = context.read<AuthService>();
-      _sub = auth.authEvents().listen((event) async {
-        if (!mounted || _done) return;
-
-        if (event == AuthChangeEvent.signedIn) {
-          setState(() => _done = true);
-          // Faz signOut para voltar ao fluxo de login normal
-          await auth.logout();
-
-          if (!mounted) return;
-          // Feedback bonito
-          await _showSnack('Conta verificada com sucesso! Faça login.');
-          _goLogin();
-        }
-      });
+    // 🔔 Escuta eventos do Supabase
+    _sub = auth.authEvents().listen((ev) {
+      if (!_mounted) return;
+      if (ev == AuthChangeEvent.userUpdated ||
+          ev == AuthChangeEvent.signedIn) {
+        _goToLogin(success: true);
+      }
     });
-  }
-
-  Future<void> _showSnack(String msg) async {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-    await Future.delayed(const Duration(milliseconds: 600));
-  }
-
-  void _goLogin() {
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
-      (_) => false,
-    );
   }
 
   @override
   void dispose() {
+    _mounted = false;
     _sub?.cancel();
+    _pulseCtrl.dispose();
     super.dispose();
+  }
+
+  /// 👉 Força refresh do usuário para verificar se já está confirmado
+  Future<void> _iAlreadyVerified() async {
+    if (_checking) return;
+    setState(() => _checking = true);
+
+    try {
+      final res = await Supabase.instance.client.auth.getUser();
+      final user = res.user;
+      if (user != null && user.emailConfirmedAt != null) {
+        _goToLogin(success: true);
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Ainda não encontramos a confirmação. Tente novamente.'),
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao verificar status: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _checking = false);
+    }
+  }
+
+  /// Navega para tela de login com mensagem
+  void _goToLogin({required bool success}) {
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (_) => false,
+    );
+    if (success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Conta confirmada! Agora você pode fazer login.'),
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final email =
+        context.watch<AuthService>().currentUser?.email ?? 'seu e-mail';
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Confirme seu e-mail')),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
+      appBar: AppBar(
+        title: const Text('Verifique seu e-mail'),
+        centerTitle: true,
+      ),
+      body: SafeArea(
         child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 540),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.mark_email_unread_outlined, size: 72, color: cs.primary),
-                const SizedBox(height: 16),
-                Text('Verifique sua caixa de entrada',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700)),
-                const SizedBox(height: 8),
-                Text(
-                  'Enviamos um link de confirmação para:\n${_mask(widget.email)}',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-                const SizedBox(height: 16),
-                Card(
-                  elevation: 1,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(
-                      children: [
-                        const SizedBox(
-                          height: 22, width: 22,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            _error ?? 'Aguardando você clicar no link do e-mail...',
-                            style: Theme.of(context).textTheme.bodyMedium,
-                          ),
-                        ),
-                      ],
+                ScaleTransition(
+                  scale: _pulseCtrl,
+                  child: Container(
+                    width: 88,
+                    height: 88,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: cs.primary.withOpacity(0.10),
+                      border: Border.all(color: cs.primary.withOpacity(0.25)),
+                    ),
+                    child: Icon(
+                      Icons.mark_email_unread_rounded,
+                      size: 40,
+                      color: cs.primary,
                     ),
                   ),
                 ),
+                const SizedBox(height: 18),
+                Text(
+                  'Confira sua caixa de entrada',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        color: cs.primary,
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Enviamos um link de verificação para:',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyMedium
+                      ?.copyWith(color: cs.onSurfaceVariant),
+                ),
+                const SizedBox(height: 6),
+                SelectableText(
+                  email,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w700),
+                ),
                 const SizedBox(height: 16),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  alignment: WrapAlignment.center,
-                  children: [
-                    OutlinedButton.icon(
-                      icon: const Icon(Icons.refresh),
-                      label: const Text('Não chegou? Atualize sua caixa de entrada'),
-                      onPressed: () {},
-                    ),
-                    OutlinedButton.icon(
-                      icon: const Icon(Icons.mail_outline),
-                      label: const Text('Abrir app de e-mail'),
-                      onPressed: () {
-                        // Dica: opcional — usar url_launcher para abrir mailto:
-                        // launchUrl(Uri.parse('mailto:'));
-                      },
-                    ),
-                  ],
+                Text(
+                  'Clique no link do e-mail para confirmar.\n'
+                  'Depois toque em “Já verifiquei” para continuar.',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyMedium
+                      ?.copyWith(color: cs.onSurfaceVariant),
+                ),
+                const SizedBox(height: 24),
+
+                // ✅ Já verifiquei
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: FilledButton(
+                    onPressed: _checking ? null : _iAlreadyVerified,
+                    child: _checking
+                        ? const SizedBox(
+                            height: 22,
+                            width: 22,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Já verifiquei'),
+                  ),
                 ),
                 const SizedBox(height: 12),
-                TextButton(
-                  onPressed: _goLogin,
-                  child: const Text('Voltar ao login'),
+
+                // 🚪 Sair
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: FilledButton.tonal(
+                    onPressed: () async {
+                      await context.read<AuthService>().logout();
+                      _goToLogin(success: false);
+                    },
+                    child: const Text('Sair e voltar ao login'),
+                  ),
                 ),
               ],
             ),
@@ -141,14 +201,5 @@ class _VerifyEmailWaitingScreenState extends State<VerifyEmailWaitingScreen> {
         ),
       ),
     );
-  }
-
-  String _mask(String email) {
-    final parts = email.split('@');
-    if (parts.length != 2) return email;
-    final u = parts[0];
-    final d = parts[1];
-    final head = u.length <= 2 ? u : '${u.substring(0, 2)}***';
-    return '$head@$d';
   }
 }

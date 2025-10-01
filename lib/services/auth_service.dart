@@ -1,126 +1,191 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter/material.dart';
+import 'package:uni_links/uni_links.dart' as uni;            // 👈 alias
+import 'package:supabase_flutter/supabase_flutter.dart' as supa;
 
-class AuthService extends ChangeNotifier {
-  final _sb = Supabase.instance.client;
+/// 1) Supabase → Auth → URL Configuration → Additional Redirect URLs:
+///    br.augusto.bookapp://auth-callback
+/// 2) No signUp/reset, use emailRedirectTo: kRedirect
+/// 3) AndroidManifest/Info.plist com o scheme abaixo
+const kRedirect = 'br.augusto.bookapp://auth-callback';
 
-  User? _user;
-  StreamSubscription<AuthState>? _sub;
+class AuthService with ChangeNotifier {
+  final supa.SupabaseClient _sb;
+  final GlobalKey<NavigatorState> navigatorKey;
 
-  User? get user => _user;
-  bool get isLogged => _user != null;
+  StreamSubscription<supa.AuthState>? _authSub;
+  StreamSubscription<Uri?>? _linkSub;
 
-  void init() {
-    _user = _sb.auth.currentUser;
-    _sub = _sb.auth.onAuthStateChange.listen((state) {
-      _user = state.session?.user;
-      notifyListeners();
+  bool _listeningLinks = false;
+  bool _handlingLink = false;
+
+  AuthService(this._sb, {required this.navigatorKey}) {
+    _listenAuthChanges();
+    _listenDeepLinks(); // trata os links de confirmação/reset
+  }
+
+  supa.User? get currentUser => _sb.auth.currentUser;
+
+  Stream<supa.AuthChangeEvent> authEvents() =>
+      _sb.auth.onAuthStateChange.map((s) => s.event);
+
+  // ---------------- AUTH STATE ----------------
+  void _listenAuthChanges() {
+    _authSub = _sb.auth.onAuthStateChange.listen((data) {
+      final ev = data.event;
+      debugPrint('[AuthService] onAuthStateChange: $ev');
+
+      if (ev == supa.AuthChangeEvent.signedOut) {
+        _goToLogin();
+      }
+      // Navegação pós-confirmação é feita pelo deep link (_handleIncomingLink)
     });
   }
 
-  Future<void> loadSession() async {
-    _user = _sb.auth.currentUser;
-    notifyListeners();
+  // ---------------- DEEP LINKS ----------------
+  Future<void> _listenDeepLinks() async {
+    if (_listeningLinks) return;
+    _listeningLinks = true;
+
+    // Link que abriu o app "frio"
+    try {
+      final initial = await uni.getInitialUri();
+      if (initial != null) {
+        debugPrint('[AuthService] initial link: $initial');
+        await _handleIncomingLink(initial);
+      }
+    } catch (e) {
+      debugPrint('[AuthService] getInitialUri error: $e');
+    }
+
+    // Links enquanto o app está aberto
+    _linkSub = uni.uriLinkStream.listen((uri) async {
+      if (uri != null) {
+        debugPrint('[AuthService] stream link: $uri');
+        await _handleIncomingLink(uri);
+      }
+    }, onError: (err) {
+      debugPrint('[AuthService] uriLinkStream error: $err');
+    });
+  }
+
+  Future<void> _handleIncomingLink(Uri uri) async {
+    if (_handlingLink) return;
+    _handlingLink = true;
+
+    try {
+      debugPrint('[AuthService] handling link: $uri');
+
+      // Interpreta URL (signup/reset/magic) e salva sessão
+      await _sb.auth.getSessionFromUrl(uri, storeSession: true);
+
+      // Após salvar a sessão, pegue o user atualizado
+      final u = _sb.auth.currentUser;
+      debugPrint('[AuthService] currentUser after link: ${u?.email}');
+
+      if (u != null) {
+        // Cria/atualiza o perfil (garanta RLS: auth.uid() = id para insert/update)
+        try {
+          await _sb.from('profiles').upsert(
+            {
+              'id': u.id,
+              'email': u.email,
+              // 'full_name': u.userMetadata?['full_name'],
+            },
+            onConflict: 'id',
+          );
+        } catch (e) {
+          debugPrint('[AuthService] upsert profiles error: $e'); // não bloqueia o fluxo
+        }
+
+        // Fluxo desejado: faz signOut e volta ao login com mensagem
+        await _sb.auth.signOut();
+        _goToLogin(message: 'Conta verificada! Faça login para continuar.');
+        return;
+      }
+
+      // Se não houver usuário aqui, o link provavelmente não trouxe tokens (redirect/config)
+      _showSnackBar(
+        'Não foi possível validar o link. Verifique o Additional Redirect URL e tente abrir no navegador externo.',
+      );
+      _goToLogin();
+    } catch (e) {
+      debugPrint('[AuthService] handleIncomingLink error: $e');
+      _showSnackBar('Falha ao confirmar: $e');
+      _goToLogin();
+    } finally {
+      _handlingLink = false;
+    }
+  }
+
+  // ---------------- AÇÕES PÚBLICAS ----------------
+  Future<supa.AuthResponse> signInWithPassword({
+    required String email,
+    required String password,
+  }) {
+    return _sb.auth.signInWithPassword(email: email, password: password);
+  }
+
+  Future<supa.AuthResponse> signUpWithPassword({
+    required String email,
+    required String password,
+    String? fullName,
+  }) {
+    return _sb.auth.signUp(
+      email: email,
+      password: password,
+      emailRedirectTo: kRedirect,
+      data: fullName != null ? {'full_name': fullName} : null,
+    );
+  }
+
+  Future<void> sendPasswordReset(String email) {
+    return _sb.auth.resetPasswordForEmail(email, redirectTo: kRedirect);
+  }
+
+  Future<void> updatePassword(String newPassword) async {
+    await _sb.auth.updateUser(supa.UserAttributes(password: newPassword));
+    await _sb.auth.signOut();
+  }
+
+  Future<void> signInWithGoogle() async {
+    await _sb.auth.signInWithOAuth(
+      supa.OAuthProvider.google,
+      redirectTo: kRedirect,
+      queryParams: const {'prompt': 'select_account'},
+    );
+  }
+
+  Future<void> logout() => _sb.auth.signOut();
+
+  // ---------------- HELPERS ----------------
+  void _goToLogin({String? message}) {
+    final nav = navigatorKey.currentState;
+    if (nav == null) return;
+
+    nav.pushNamedAndRemoveUntil('/login', (_) => false);
+
+    if (message != null) {
+      final ctx = nav.context;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ScaffoldMessenger.of(ctx).showSnackBar(
+          SnackBar(content: Text(message)),
+        );
+      });
+    }
+  }
+
+  void _showSnackBar(String msg) {
+    final nav = navigatorKey.currentState;
+    if (nav == null) return;
+    final ctx = nav.context;
+    ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(msg)));
   }
 
   @override
   void dispose() {
-    _sub?.cancel();
+    _authSub?.cancel();
+    _linkSub?.cancel();
     super.dispose();
-  }
-
-  Future<void> signUp({
-    required String email,
-    required String password,
-    required String username,
-  }) async {
-    try {
-      await _sb.auth.signUp(
-        email: email,
-        password: password,
-        data: {'username': username},
-        emailRedirectTo: 'livrosapp://auth-callback',
-      );
-    } on AuthException catch (e) {
-      throw Exception(e.message);
-    } catch (_) {
-      throw Exception('Falha ao criar conta.');
-    }
-  }
-
-  Future<void> signIn({required String email, required String password}) async {
-    try {
-      await _sb.auth.signInWithPassword(email: email, password: password);
-    } on AuthException catch (e) {
-      throw Exception(e.message);
-    } catch (_) {
-      throw Exception('Não foi possível entrar.');
-    }
-  }
-
-  Future<void> logout() async {
-    try {
-      await _sb.auth.signOut();
-    } catch (_) {}
-  }
-
-  /// 1) Verifica SENHA ANTIGA (reauth) e 2) envia e-mail de reset (deep link)
-  Future<void> requestPasswordResetVerified({
-    required String email,
-    required String oldPassword,
-  }) async {
-    try {
-      await _sb.auth.signInWithPassword(email: email, password: oldPassword);
-      await _sb.auth.resetPasswordForEmail(
-        email,
-        redirectTo: 'livrosapp://auth-callback',
-      );
-      await _sb.auth.signOut();
-    } on AuthException catch (e) {
-      throw Exception(e.message);
-    } catch (_) {
-      throw Exception('Falha ao solicitar redefinição.');
-    }
-  }
-
-  /// 3) Depois do deep link (passwordRecovery), troca a senha aqui
-  Future<void> updatePassword(String newPassword) async {
-    try {
-      await _sb.auth.updateUser(UserAttributes(password: newPassword));
-    } on AuthException catch (e) {
-      throw Exception(e.message);
-    } catch (_) {
-      throw Exception('Não foi possível atualizar a senha.');
-    }
-  }
-
-  /// Eventos de auth (inclui passwordRecovery quando abre via deep link)
-  Stream<AuthChangeEvent> authEvents() =>
-      _sb.auth.onAuthStateChange.map((e) => e.event);
-
-  // --- compat opcional ---
-  Future<void> register(String username, String password) async {
-    if (username.contains('@')) {
-      await signUp(email: username, password: password, username: username);
-    } else {
-      throw Exception('Use signUp(email, password, username).');
-    }
-  }
-
-  Future<void> login(String username, String password) async {
-    if (username.contains('@')) {
-      await signIn(email: username, password: password);
-    } else {
-      throw Exception('Use signIn(email, password).');
-    }
-  }
-
-  Future<void> changePassword({
-    required String username,
-    required String currentPassword,
-    required String newPassword,
-  }) async {
-    throw Exception('Use o fluxo via e-mail (reset) e depois updatePassword(newPassword).');
   }
 }

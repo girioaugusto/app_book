@@ -41,7 +41,7 @@ class AppDrawer extends StatelessWidget {
     final isDark = themeCtrl.mode == ThemeMode.dark;
 
     final auth = context.watch<AuthService>();
-    final user = auth.user;
+    final user = auth.currentUser;
 
     // Tenta pegar o username do metadata; se não houver, usa prefixo do e-mail.
     String displayName = 'Convidado';
